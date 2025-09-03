@@ -1,53 +1,55 @@
-const express = require("express");
-const cors = require("cors");
-const mongoose = require("mongoose");
-require("dotenv").config();
+console.log("hello from zakoota")
 
-const app = express();
-const PORT = process.env.PORT || 666;
+// const express = require("express");
+// const cors = require("cors");
+// const mongoose = require("mongoose");
+// require("dotenv").config();
 
-// --- Middleware ---
-app.use(cors());
-app.use(express.json());
+// const app = express();
+// const PORT = process.env.PORT || 666;
 
-// --- Routes ---
-app.get("/health", (req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
-});
+// // --- Middleware ---
+// app.use(cors());
+// app.use(express.json());
 
-// --- MongoDB connection ---
-if (process.env.NODE_ENV !== "test") {
-  console.log("✅ Connecting to MongoDB...");
+// // --- Routes ---
+// app.get("/health", (req, res) => {
+//   res.json({ ok: true, time: new Date().toISOString() });
+// });
 
-  mongoose
-    .connect(process.env.MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    })
-    .then((conn) => {
-      console.log("✅ MongoDB connected:", conn.connection.host);
+// // --- MongoDB connection ---
+// if (process.env.NODE_ENV !== "test") {
+//   console.log("✅ Connecting to MongoDB...");
 
-      // Start server after DB is ready
-      const server = app.listen(PORT, () => {
-        console.log(`🚀 API running on http://localhost:${PORT}`);
-      });
+//   mongoose
+//     .connect(process.env.MONGO_URI, {
+//       useNewUrlParser: true,
+//       useUnifiedTopology: true,
+//     })
+//     .then((conn) => {
+//       console.log("✅ MongoDB connected:", conn.connection.host);
 
-      // Graceful shutdown
-      process.on("SIGINT", async () => {
-        console.log("🛑 SIGINT received: shutting down...");
-        server.close(() => console.log("✅ HTTP server closed"));
+//       // Start server after DB is ready
+//       const server = app.listen(PORT, () => {
+//         console.log(`🚀 API running on http://localhost:${PORT}`);
+//       });
 
-        await mongoose.connection.close();
-        console.log("✅ MongoDB connection closed");
+//       // Graceful shutdown
+//       process.on("SIGINT", async () => {
+//         console.log("🛑 SIGINT received: shutting down...");
+//         server.close(() => console.log("✅ HTTP server closed"));
 
-        process.exit(0);
-      });
-    })
-    .catch((err) => {
-      console.error("❌ MongoDB connection error:", err.message);
-      process.exit(1);
-    });
-}
+//         await mongoose.connection.close();
+//         console.log("✅ MongoDB connection closed");
 
-// --- Export app (useful for testing) ---
-module.exports = app;
+//         process.exit(0);
+//       });
+//     })
+//     .catch((err) => {
+//       console.error("❌ MongoDB connection error:", err.message);
+//       process.exit(1);
+//     });
+// }
+
+// // --- Export app (useful for testing) ---
+// module.exports = app;
