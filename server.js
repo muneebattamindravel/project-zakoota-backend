@@ -1,21 +1,23 @@
 console.log("hello from zakoota")
 
-// const express = require("express");
-// const cors = require("cors");
-// const mongoose = require("mongoose");
-// require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
+require("dotenv").config();
 
-// const app = express();
-// const PORT = process.env.PORT || 666;
+const app = express();
+const PORT = process.env.PORT || 666;
 
-// // --- Middleware ---
-// app.use(cors());
-// app.use(express.json());
+// --- Middleware ---
+app.use(cors());
+app.use(express.json());
 
-// // --- Routes ---
-// app.get("/health", (req, res) => {
-//   res.json({ ok: true, time: new Date().toISOString() });
-// });
+// --- Routes ---
+app.get("/health", (req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
+});
+
+console.log("till health")
 
 // // --- MongoDB connection ---
 // if (process.env.NODE_ENV !== "test") {
