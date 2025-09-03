@@ -30,12 +30,12 @@ jobs:
             --exclude='node_modules' \
             --exclude='.git' \
             -e "ssh -i ~/.ssh/id_rsa" ./ \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/ubuntu/project-zakoota-backend
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:project-zakoota-backend
 
       - name: Deploy to Server
         run: | 
           ssh -i ~/.ssh/id_rsa ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-          cd /home/ubuntu/project-zakoota-backend
+          cd project-zakoota-backend
           git pull origin main || true   # optional if repo already exists
           npm install --production
           pm2 restart zakoota || pm2 start src/server.js --name "zakoota"
