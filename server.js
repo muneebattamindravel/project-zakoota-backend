@@ -23,10 +23,7 @@ console.log("till health")
 console.log("✅ Connecting to MongoDB...");
 
 mongoose
-    .connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-    })
+    .connect(process.env.MONGO_URI)
     .then((conn) => {
         console.log("✅ MongoDB connected:", conn.connection.host);
 
