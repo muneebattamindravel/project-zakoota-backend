@@ -1,4 +1,5 @@
-console.log("hello from zakoota")
+console.log("***** Z A K O O T A A *****")
+console.log(new Date().toISOString())
 
 const express = require("express");
 const cors = require("cors");
@@ -16,8 +17,6 @@ app.use(express.json());
 app.get("/health", (req, res) => {
     res.json({ ok: true, time: new Date().toISOString() });
 });
-
-console.log("till health")
 
 // --- MongoDB connection ---
 console.log("✅ Connecting to MongoDB...");
