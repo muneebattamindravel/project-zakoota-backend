@@ -38,6 +38,6 @@ jobs:
           cd project-zakoota-backend
           git pull origin main || true   # optional if repo already exists
           npm install --production
-          pm2 start src/server.js --name "zakoota"
+          pm2 restart zakoota || pm2 start src/server.js --name "zakoota"
           pm2 save
           EOF
