@@ -1,5 +1,5 @@
 console.log("-------------------------------");
-console.log("***** Z A K O O T A v 1.0 *****");
+console.log("***** Z A K O O T A v1.0 *****");
 console.log("-------------------------------");
 console.log(new Date().toISOString());
 console.log("-------------------------------");

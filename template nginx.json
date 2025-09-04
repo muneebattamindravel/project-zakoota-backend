@@ -1,0 +1,90 @@
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile      on;
+    keepalive_timeout 65;
+
+    # ----------------------------
+    # Redirect HTTP → HTTPS for Upbotdash only
+    # ----------------------------
+    server {
+        listen 80;
+        server_name upbotdash.mindravel.com;
+        return 301 https://$host$request_uri;
+    }
+
+    # ----------------------------
+    # Upbotdash Dashboard + Backend (with SSL)
+    # ----------------------------
+    server {
+        listen 443 ssl http2;
+        listen [::]:443 ssl http2;
+        server_name upbotdash.mindravel.com;
+
+        root /home/ubuntu/dashboard-frontend;
+        index index.html;
+
+        ssl_certificate /etc/letsencrypt/live/upbotdash.mindravel.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/upbotdash.mindravel.com/privkey.pem;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_prefer_server_ciphers on;
+
+        # Serve the static frontend
+        location / {
+            try_files $uri /index.html;
+        }
+
+        # Proxy API requests to backend
+        location /up-bot-brain-api/ {
+            proxy_pass http://localhost:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+
+    # ----------------------------
+    # Zakoota Dashboard + Backend (HTTP only)
+    # ----------------------------
+    server {
+        listen 80;
+        server_name zakoota.mindravel.com;
+
+        root /home/ubuntu/zakoota-frontend;
+        index index.html;
+
+        # Serve static frontend
+        location / {
+            try_files $uri /index.html;
+        }
+
+        # Proxy API requests to backend
+        location /zakoota-api/ {
+            proxy_pass http://localhost:6666;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+
+    # ----------------------------
+    # Default fallback (direct IP access)
+    # ----------------------------
+    server {
+        listen 80 default_server;
+        server_name _;
+        return 200 "Nginx is running — please use the correct domain.\n";
+    }
+}
