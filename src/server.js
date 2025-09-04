@@ -29,8 +29,8 @@ app.use("/api/logs", logRoutes);
 // global error handler (keeps response shape)
 const Respond = require("./utils/respond");
 app.use((err, req, res, next) => {
-  console.error("Unhandled error:", err);
-  return Respond.error(res, "unhandled_error", err.message || "Internal error");
+    console.error("Unhandled error:", err);
+    return Respond.error(res, "unhandled_error", err.message || "Internal error");
 });
 
 app.get("/health", (req, res) => {
@@ -46,13 +46,14 @@ mongoose
         console.log("✅ MongoDB connected:", conn.connection.host);
 
         // Start server after DB is ready
-        const server = app.listen(PORT, () => {
-            console.log(`🚀 API running on http://localhost:${PORT}`);
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
         });
+
 
         // Graceful shutdown
         process.on("SIGINT", async () => {
-            console.log("🛑 SIGINT received: shutting down...");
+            console.log("🛑 SIGINT received: shutting down..");
             server.close(() => console.log("✅ HTTP server closed"));
 
             await mongoose.connection.close();
