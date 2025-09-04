@@ -1,5 +1,8 @@
+console.log("--------------------------")
 console.log("***** Z A K O O T A  *****")
+console.log("--------------------------")
 console.log(new Date().toISOString())
+console.log("--------------------------")
 
 const express = require("express");
 const cors = require("cors");
