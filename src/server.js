@@ -1,4 +1,4 @@
-console.log("***** Z A K O O T A A *****")
+console.log("***** Z A K O O T A  *****")
 console.log(new Date().toISOString())
 
 const express = require("express");
@@ -14,6 +14,22 @@ app.use(cors());
 app.use(express.json());
 
 // --- Routes ---
+// routes
+const authRoutes = require("./routes/auth");
+const deviceRoutes = require("./routes/devices");
+const logRoutes = require("./routes/logs");
+
+app.use("/api/auth", authRoutes);
+app.use("/api/devices", deviceRoutes);
+app.use("/api/logs", logRoutes);
+
+// global error handler (keeps response shape)
+const Respond = require("./utils/respond");
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  return Respond.error(res, "unhandled_error", err.message || "Internal error");
+});
+
 app.get("/health", (req, res) => {
     res.json({ ok: true, time: new Date().toISOString() });
 });
