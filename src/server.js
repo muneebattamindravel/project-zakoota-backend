@@ -1,95 +1,89 @@
-// -------------------------------
-// ***** Z A K O O T A  v1.0 *****
-// -------------------------------
-console.log("-------------------------------");
-console.log("***** Z A K O O T A v1.0 *****");
-console.log("-------------------------------");
-console.log(new Date().toISOString());
-console.log("-------------------------------");
-
 require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
 const mongoose = require("mongoose");
+const rateLimit = require("express-rate-limit");
 const Respond = require("./utils/respond");
 
-// Config
-const API_PREFIX = process.env.API_PREFIX || "/zakoota-api";
-const PORT = Number(process.env.PORT || 6666);
-const MONGO_URI = process.env.MONGO_URI;
+// ---- Config
+const API_PREFIX  = process.env.API_PREFIX || "/zakoota-api";
+const PORT        = Number(process.env.PORT || 6666);
+const MONGO_URI   = process.env.MONGO_URI;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
+
+console.log("-------------------------------");
+console.log("***** Z A K O O T A  v1.0 *****");
+console.log("-------------------------------");
+console.log(new Date().toISOString());
+console.log("-------------------------------");
 
 const app = express();
 
-// --- Middleware ---
-app.use(cors());               // adjust to { origin: [...], credentials: true } if needed
-app.use(express.json());
+// ---- Security & basics
+app.use(helmet());
+app.use(cors({ origin: CORS_ORIGIN === "*" ? true : [CORS_ORIGIN], credentials: false }));
+app.use(express.json({ limit: "2mb" }));
+app.use(morgan("combined"));
 
-// --- Routes ---
+// ---- Rate limits
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50 });
+const apiLimiter  = rateLimit({ windowMs: 60 * 1000, max: 600 });
+
+// ---- Routes (keep your existing route files)
 const authRoutes   = require("./routes/auth");
 const deviceRoutes = require("./routes/devices");
 const logRoutes    = require("./routes/logs");
 
-// Mount all API routes under /zakoota-api/*
-app.use(`${API_PREFIX}/auth`,   authRoutes);
-app.use(`${API_PREFIX}/devices`, deviceRoutes);
-app.use(`${API_PREFIX}/logs`,    logRoutes);
+// Mount under /zakoota-api/*
+app.use(`${API_PREFIX}/auth`,    authLimiter, authRoutes);
+app.use(`${API_PREFIX}/devices`, apiLimiter,  deviceRoutes);
+app.use(`${API_PREFIX}/logs`,    apiLimiter,  logRoutes);
 
-// --- Health route (under /zakoota-api/health) ---
+// Health
 app.get(`${API_PREFIX}/health`, (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// --- Global error handler ---
+// Global error handler (uses your Respond helper)
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
   return Respond.error(res, "unhandled_error", err.message || "Internal error");
 });
 
-// --- MongoDB connection + Server startup ---
+// ---- Startup / shutdown
 let server;
-async function startServer() {
+async function start() {
   try {
-    if (!MONGO_URI) {
-      throw new Error("MONGO_URI is not set");
-    }
-
+    if (!MONGO_URI) throw new Error("MONGO_URI not set");
     console.log("✅ Connecting to MongoDB...");
     await mongoose.connect(MONGO_URI);
     console.log("✅ MongoDB connected");
 
     server = app.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-      console.log(`🔗 API base: ${API_PREFIX}`);
-      console.log(`🩺 Health:   GET ${API_PREFIX}/health`);
+      console.log(`🚀 Listening on http://0.0.0.0:${PORT}${API_PREFIX}`);
+      console.log(`🩺 Health: GET ${API_PREFIX}/health`);
     });
-  } catch (err) {
-    console.error("❌ Startup error:", err.message);
+  } catch (e) {
+    console.error("❌ Startup error:", e);
     process.exit(1);
   }
 }
+start();
 
-// --- Graceful shutdown ---
-async function shutdown(signal) {
+async function shutdown(sig) {
   try {
-    console.log(`🛑 ${signal} received: shutting down...`);
-    if (server) {
-      await new Promise((res) => server.close(res));
-      console.log("✅ HTTP server closed");
-    }
+    console.log(`🛑 ${sig} received: shutting down...`);
+    if (server) await new Promise((res) => server.close(res));
     await mongoose.connection.close();
-    console.log("✅ MongoDB connection closed");
-  } catch (e) {
-    console.error("⚠️ Error during shutdown:", e);
+    console.log("✅ Clean shutdown complete");
   } finally {
     process.exit(0);
   }
 }
-
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-startServer();
-
-// --- Export app (for testing) ---
 module.exports = app;

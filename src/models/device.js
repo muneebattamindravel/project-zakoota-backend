@@ -1,11 +1,12 @@
 const mongoose = require("mongoose");
 
-const DeviceSchema = new mongoose.Schema({
-  deviceId: { type: String, unique: true, index: true },
-  userId: { type: String, default: null },
-  username: { type: String, default: null },
-  notes: String,
-  lastSeenAt: { type: Date, index: true }
+const deviceSchema = new mongoose.Schema({
+  deviceId: { type: String, required: true, index: true, unique: true },
+  name: { type: String, trim: true },
+  type: { type: String, enum: ["sensor","bot","agent","other"], default: "other" },
+  status: { type: String, enum: ["online","offline","idle","error"], default: "offline" },
+  lastSeen: { type: Date },
+  meta: { type: Object, default: {} },
 }, { timestamps: true });
 
-module.exports = mongoose.model("Device", DeviceSchema);
+module.exports = mongoose.model("Device", deviceSchema);
