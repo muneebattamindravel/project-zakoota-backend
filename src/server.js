@@ -1,13 +1,15 @@
-console.log("-------------------------------")
-console.log("***** Z A K O O T A v 1.0 *****")
-console.log("-------------------------------")
-console.log(new Date().toISOString())
+console.log("-------------------------------");
+console.log("***** Z A K O O T A v 1.0 *****");
+console.log("-------------------------------");
+console.log(new Date().toISOString());
 console.log("-------------------------------");
 
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
+
+const Respond = require("./utils/respond");
 
 const app = express();
 const PORT = process.env.PORT || 666;
@@ -17,7 +19,6 @@ app.use(cors());
 app.use(express.json());
 
 // --- Routes ---
-// routes
 const authRoutes = require("./routes/auth");
 const deviceRoutes = require("./routes/devices");
 const logRoutes = require("./routes/logs");
@@ -26,48 +27,51 @@ app.use("/api/auth", authRoutes);
 app.use("/api/devices", deviceRoutes);
 app.use("/api/logs", logRoutes);
 
-// global error handler (keeps response shape)
-const Respond = require("./utils/respond");
-app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err);
-    return Respond.error(res, "unhandled_error", err.message || "Internal error");
-});
-
+// --- Health route ---
 app.get("/health", (req, res) => {
-    res.json({ ok: true, time: new Date().toISOString() });
+  res.json({ ok: true, time: new Date().toISOString() });
 });
 
-// --- MongoDB connection ---
-console.log("✅ Connecting to MongoDB...");
+// --- Global error handler ---
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  return Respond.error(res, "unhandled_error", err.message || "Internal error");
+});
 
-mongoose
-    .connect(process.env.MONGO_URI)
-    .then((conn) => {
-        console.log("✅ MongoDB connected:", conn.connection.host);
+// --- MongoDB connection + Server startup ---
+async function startServer() {
+  try {
+    console.log("✅ Connecting to MongoDB...");
+    mongoose.set("strictQuery", true);
 
-        // Start server after DB is ready
-        const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
-        });
-
-
-        // Graceful shutdown
-        process.on("SIGINT", async () => {
-            console.log("🛑 SIGINT received: shutting down..");
-            server.close(() => console.log("✅ HTTP server closed"));
-
-            await mongoose.connection.close();
-            console.log("✅ MongoDB connection closed");
-
-            process.exit(0);
-        });
-    })
-    .catch((err) => {
-        console.error("❌ MongoDB connection error:", err.message);
-        process.exit(1);
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000, // fail fast if DB not reachable
     });
 
+    console.log("✅ MongoDB connected:", conn.connection.host);
+
+    const server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
+    });
+
+    // --- Graceful shutdown ---
+    const shutdown = async (signal) => {
+      console.log(`🛑 ${signal} received: shutting down..`);
+      server.close(() => console.log("✅ HTTP server closed"));
+      await mongoose.connection.close();
+      console.log("✅ MongoDB connection closed");
+      process.exit(0);
+    };
+
+    process.on("SIGINT", () => shutdown("SIGINT"));
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err.message);
+    process.exit(1);
+  }
+}
+
+startServer();
 
 // --- Export app (useful for testing) ---
 module.exports = app;
-//This is obviously a file change
