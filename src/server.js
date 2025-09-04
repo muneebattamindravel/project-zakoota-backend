@@ -1,34 +1,42 @@
+// -------------------------------
+// ***** Z A K O O T A  v1.0 *****
+// -------------------------------
 console.log("-------------------------------");
 console.log("***** Z A K O O T A v1.0 *****");
 console.log("-------------------------------");
 console.log(new Date().toISOString());
 console.log("-------------------------------");
 
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-require("dotenv").config();
-
 const Respond = require("./utils/respond");
 
+// Config
+const API_PREFIX = process.env.API_PREFIX || "/zakoota-api";
+const PORT = Number(process.env.PORT || 6666);
+const MONGO_URI = process.env.MONGO_URI;
+
 const app = express();
-const PORT = process.env.PORT || 666;
 
 // --- Middleware ---
-app.use(cors());
+app.use(cors());               // adjust to { origin: [...], credentials: true } if needed
 app.use(express.json());
 
 // --- Routes ---
-const authRoutes = require("./routes/auth");
+const authRoutes   = require("./routes/auth");
 const deviceRoutes = require("./routes/devices");
-const logRoutes = require("./routes/logs");
+const logRoutes    = require("./routes/logs");
 
-app.use("/api/auth", authRoutes);
-app.use("/api/devices", deviceRoutes);
-app.use("/api/logs", logRoutes);
+// Mount all API routes under /zakoota-api/*
+app.use(`${API_PREFIX}/auth`,   authRoutes);
+app.use(`${API_PREFIX}/devices`, deviceRoutes);
+app.use(`${API_PREFIX}/logs`,    logRoutes);
 
-// --- Health route ---
-app.get("/health", (req, res) => {
+// --- Health route (under /zakoota-api/health) ---
+app.get(`${API_PREFIX}/health`, (req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });
 
@@ -39,55 +47,49 @@ app.use((err, req, res, next) => {
 });
 
 // --- MongoDB connection + Server startup ---
+let server;
 async function startServer() {
   try {
+    if (!MONGO_URI) {
+      throw new Error("MONGO_URI is not set");
+    }
 
+    console.log("✅ Connecting to MongoDB...");
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ MongoDB connected");
 
-    console.log('✅ Connecting to Mongo');
-    // ✅ Connect to MongoDB and start server
-    mongoose.connect(process.env.MONGO_URI)
-      .then(() => {
-        console.log('✅ MongoDB connected');
-        const PORT = process.env.PORT || 6666;
-        app.listen(PORT, () =>
-          console.log(`🚀 Server running on port ${PORT}`)
-        );
-      })
-
-
-    // console.log("✅ Connecting to MongoDB...");
-    // mongoose.set("strictQuery", true);
-
-    // const conn = await mongoose.connect(process.env.MONGO_URI, {
-    //   serverSelectionTimeoutMS: 10000, // fail fast if DB not reachable
-    // });
-
-    // console.log("✅ MongoDB connected:", conn.connection.host);
-
-    // const server = app.listen(PORT, "0.0.0.0", () => {
-    //   console.log(`🚀 API running on http://0.0.0.0:${PORT}`);
-    // });
-
-    // --- Graceful shutdown ---
-    const shutdown = async (signal) => {
-      console.log(`🛑 ${signal} received: shutting down..`);
-      server.close(() => console.log("✅ HTTP server closed"));
-      await mongoose.connection.close();
-      console.log("✅ MongoDB connection closed");
-      process.exit(0);
-    };
-
-    process.on("SIGINT", () => shutdown("SIGINT"));
-    process.on("SIGTERM", () => shutdown("SIGTERM"));
-
-
+    server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+      console.log(`🔗 API base: ${API_PREFIX}`);
+      console.log(`🩺 Health:   GET ${API_PREFIX}/health`);
+    });
   } catch (err) {
-    console.error("❌ MongoDB connection error:", err.message);
+    console.error("❌ Startup error:", err.message);
     process.exit(1);
   }
 }
 
+// --- Graceful shutdown ---
+async function shutdown(signal) {
+  try {
+    console.log(`🛑 ${signal} received: shutting down...`);
+    if (server) {
+      await new Promise((res) => server.close(res));
+      console.log("✅ HTTP server closed");
+    }
+    await mongoose.connection.close();
+    console.log("✅ MongoDB connection closed");
+  } catch (e) {
+    console.error("⚠️ Error during shutdown:", e);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
 startServer();
 
-// --- Export app (useful for testing) ---
+// --- Export app (for testing) ---
 module.exports = app;
