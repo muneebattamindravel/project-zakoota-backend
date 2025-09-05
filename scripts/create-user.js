@@ -19,6 +19,7 @@ async function main() {
   }
 
   await mongoose.connect(MONGO_URI);
+
   const passwordHash = await bcrypt.hash(password, 10);
 
   const existing = await User.findOne({ username });
