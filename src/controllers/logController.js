@@ -207,10 +207,15 @@ exports.apps = async (req, res) => {
 exports.titles = async (req, res) => {
   const { deviceId, appName, from, to, top = 20 } = req.query;
   if (!deviceId || !appName) {
-    return Respond.badRequest(res, "deviceId_and_appName_required", "deviceId and appName are required");
+    return Respond.badRequest(
+      res,
+      "deviceId_and_appName_required",
+      "deviceId and appName are required"
+    );
   }
 
-  const parseDate = (v) => (!v ? null : (isFinite(v) ? new Date(Number(v)) : new Date(v)));
+  const parseDate = (v) =>
+    !v ? null : isFinite(v) ? new Date(Number(v)) : new Date(v);
   const fromDate = parseDate(from) || new Date(Date.now() - 24 * 3600 * 1000);
   const toDate = parseDate(to) || new Date();
 
@@ -218,14 +223,44 @@ exports.titles = async (req, res) => {
     { $match: { deviceId, endAt: { $gte: fromDate, $lte: toDate } } },
     { $unwind: "$logDetails" },
     { $match: { "logDetails.appName": appName } },
-    { $group: { _id: "$logDetails.title", activeTime: { $sum: "$logDetails.activeTime" } } },
+    {
+      $group: {
+        _id: {
+          title: "$logDetails.title",
+          processName: "$logDetails.processName",
+          appName: "$logDetails.appName"
+        },
+        activeTime: { $sum: "$logDetails.activeTime" },
+        idleTime: { $sum: "$logDetails.idleTime" },
+        mouseMovements: { $sum: "$logDetails.mouseMovements" },
+        mouseScrolls: { $sum: "$logDetails.mouseScrolls" },
+        mouseClicks: { $sum: "$logDetails.mouseClicks" },
+        keysPressed: { $sum: "$logDetails.keysPressed" },
+        count: { $sum: 1 } // number of chunks that included this title
+      }
+    },
     { $sort: { activeTime: -1 } },
     { $limit: Number(top) },
-    { $project: { _id: 0, title: "$_id", activeTime: 1 } },
+    {
+      $project: {
+        _id: 0,
+        title: "$_id.title",
+        processName: "$_id.processName",
+        appName: "$_id.appName",
+        activeTime: 1,
+        idleTime: 1,
+        mouseMovements: 1,
+        mouseScrolls: 1,
+        mouseClicks: 1,
+        keysPressed: 1,
+        count: 1
+      }
+    }
   ]);
 
   return Respond.ok(res, { titles: rows });
 };
+
 
 /**
  * GET /api/logs/missing
