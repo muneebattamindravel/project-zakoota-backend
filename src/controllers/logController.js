@@ -10,10 +10,10 @@ const { guessAppName } = require("../utils/appNormalize");
 exports.ingest = async (req, res) => {
   const parsed = ingestBodyZ.safeParse(req.body);
   if (!parsed.success) {
-    const details = (parsed.error?.errors || []).map(err => ({
-      path: Array.isArray(err.path) ? err.path.join(".") : String(err.path),
-      message: err.message,
-      code: err.code
+    const details = (parsed.error?.issues || []).map(issue => ({
+      path: Array.isArray(issue.path) ? issue.path.join(".") : String(issue.path),
+      message: issue.message,
+      code: issue.code
     }));
 
     return Respond.badRequest(
