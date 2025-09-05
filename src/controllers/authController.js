@@ -61,7 +61,7 @@ exports.register = async (req, res) => {
     const user = new User({ username, passwordHash });
     await user.save();
 
-    return Respond.success(res, {
+    return Respond.ok(res, {
       user: { id: user._id, username: user.username }
     });
   } catch (err) {
