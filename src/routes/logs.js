@@ -10,5 +10,6 @@ router.get("/aggregate/summary", asyncHandler(logController.summary));
 router.get("/aggregate/apps",    asyncHandler(logController.apps));
 router.get("/aggregate/titles",  asyncHandler(logController.titles));
 router.get("/missing",  asyncHandler(logController.missing));
+router.delete("/", logController.deleteAllLogs);
 
 module.exports = router;

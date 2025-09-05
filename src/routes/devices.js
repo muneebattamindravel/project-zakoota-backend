@@ -6,5 +6,6 @@ const router = express.Router();
 
 router.get("/", asyncHandler(deviceController.list));
 router.patch("/:deviceId", asyncHandler(deviceController.assign));
+router.delete("/", deviceController.deleteAllDevices);
 
 module.exports = router;

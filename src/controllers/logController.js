@@ -247,3 +247,10 @@ exports.missing = async (req, res) => {
   const have = docs.map((d) => d.endAt.getTime());
   return Respond.ok(res, { have }, "Existing endAt list");
 };
+
+
+// NEW: delete all logs
+exports.deleteAllLogs = async (req, res) => {
+  await ActivityChunk.deleteMany({});
+  res.json({ ok: true, message: "All logs deleted" });
+};

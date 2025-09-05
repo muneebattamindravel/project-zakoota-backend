@@ -28,3 +28,9 @@ exports.assign = async (req, res) => {
 
   return Respond.ok(res, { device: dev }, "Device mapping updated");
 };
+
+// NEW: delete all devices
+exports.deleteAllDevices = async (req, res) => {
+  await Device.deleteMany({});
+  res.json({ ok: true, message: "All devices deleted" });
+};

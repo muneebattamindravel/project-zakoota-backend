@@ -17,3 +17,22 @@ exports.login = async (req, res) => {
   // MVP: no token; FE treats { ok:true } as logged in
   return Respond.ok(res, { user: { username: user.username } }, "Login successful");
 };
+
+// NEW: register user
+exports.register = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return Respond.error(res, "validation_error", "Username and password required");
+    }
+    const existing = await User.findOne({ username });
+    if (existing) {
+      return Respond.error(res, "conflict", "User already exists");
+    }
+    const user = new User({ username, password });
+    await user.save();
+    return Respond.success(res, { user });
+  } catch (err) {
+    return Respond.error(res, "server_error", err.message);
+  }
+};
