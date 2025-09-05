@@ -5,6 +5,11 @@ const Respond = require("../utils/respond");
 exports.login = async (req, res) => {
   try {
     const { username, password } = req.body || {};
+
+    console.log("------------------")
+    console.log("------------------")
+    console.log(`username ${username} password ${password}`);
+
     if (!username || !password) {
       return Respond.badRequest(
         res,
