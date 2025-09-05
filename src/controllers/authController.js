@@ -18,8 +18,11 @@ exports.login = async (req, res) => {
       );
     }
 
+    console.log("pass 1")
+
     const user = await User.findOne({ username });
     if (!user) {
+      console.log("fail 1")
       return Respond.unauthorized(
         res,
         "invalid_credentials",
@@ -27,14 +30,20 @@ exports.login = async (req, res) => {
       );
     }
 
+    console.log("pass 2")
+
+    console.log(`password received ${password} password hash ${user.passwordHash}`)
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) {
+      console.log("fail 2")
       return Respond.unauthorized(
         res,
         "invalid_credentials",
         "Invalid username or password"
       );
     }
+
+    console.log("pass 3")
 
     // ✅ Return only safe fields
     return Respond.ok(
