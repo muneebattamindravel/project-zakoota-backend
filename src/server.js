@@ -24,7 +24,9 @@ const app = express();
 
 // ---- Security & basics
 app.use(helmet());
-app.use(cors({ origin: CORS_ORIGIN === "*" ? true : [CORS_ORIGIN], credentials: false }));
+// app.use(cors({ origin: CORS_ORIGIN === "*" ? true : [CORS_ORIGIN], credentials: false }));
+app.use(cors({ origin: "*" }));
+
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan("combined"));
 
