@@ -10,7 +10,19 @@ const { guessAppName } = require("../utils/appNormalize");
 exports.ingest = async (req, res) => {
   const parsed = ingestBodyZ.safeParse(req.body);
   if (!parsed.success) {
-    return Respond.badRequest(res, "validation_error", "Invalid payload", parsed.error.flatten());
+    // Build a detailed error map
+    const details = parsed.error.errors.map(err => ({
+      path: err.path.join("."),
+      message: err.message,
+      code: err.code
+    }));
+
+    return Respond.badRequest(
+      res,
+      "validation_error",
+      "Invalid payload",
+      { errors: details }
+    );
   }
 
   const now = new Date();
@@ -92,7 +104,7 @@ exports.ingest = async (req, res) => {
     for (let i = 0; i < results.length; i++) {
       if (results[i].status !== "pending") continue;
       if (inserted > 0) { results[i].status = "inserted"; inserted--; continue; }
-      if (updated > 0)  { results[i].status = "updated";  updated--;  continue; }
+      if (updated > 0) { results[i].status = "updated"; updated--; continue; }
       results[i].status = "duplicate";
     }
 
