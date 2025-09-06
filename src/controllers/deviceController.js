@@ -2,31 +2,37 @@ const Device = require("../models/device");
 const ActivityChunk = require("../models/activityChunk");
 const Respond = require("../utils/respond");
 
-exports.list = async (req, res) => {
-  const devices = await Device.find().sort({ lastSeenAt: -1 }).lean();
-  return Respond.ok(res, { devices }, "Devices fetched");
+exports.list = async (_req, res) => {
+  const devices = await Device.find({}).lean();
+  const now = Date.now();
+  const enriched = devices.map(d => {
+    let status = d.status || 'unknown';
+    if (d.lastSeen) {
+      const diff = now - new Date(d.lastSeen).getTime();
+      status = diff < 2 * 60 * 1000 ? 'online' : diff < 10 * 60 * 1000 ? 'idle' : 'offline';
+    }
+    return { ...d, status };
+  });
+  return Respond.ok(res, { devices: enriched }, 'Devices listed');
 };
 
 exports.assign = async (req, res) => {
   const { deviceId } = req.params;
-  const { userId = null, username = null } = req.body || {};
-
-  if (!deviceId) return Respond.badRequest(res, "deviceId_required", "deviceId is required");
-
+  const { username, userId } = req.body;
+  if (!deviceId || (!username && !userId)) {
+    return Respond.badRequest(res, 'assign_invalid', 'deviceId and one of username/userId are required');
+  }
   const dev = await Device.findOneAndUpdate(
     { deviceId },
-    { $set: { userId, username } },
-    { new: true, upsert: true }
+    { $set: { username: username || null, userId: userId || null } },
+    { upsert: true, new: true }
   );
-
-  // Cascade mapping to recent chunks (7 days)
-  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   await ActivityChunk.updateMany(
-    { deviceId, endAt: { $gte: sevenDaysAgo } },
-    { $set: { userRef: { userId: dev.userId, username: dev.username } } }
+    { deviceId, endAt: { $gte: since } },
+    { $set: { userRef: { username: username || null, userId: userId || null } } }
   );
-
-  return Respond.ok(res, { device: dev }, "Device mapping updated");
+  return Respond.ok(res, { device: dev }, 'Device assigned');
 };
 
 // NEW: delete all devices

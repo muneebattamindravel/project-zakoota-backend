@@ -1,3 +1,4 @@
+// src/controllers/logController.js
 const Device = require("../models/device");
 const ActivityChunk = require("../models/activityChunk");
 const Respond = require("../utils/respond");
@@ -15,33 +16,32 @@ exports.ingest = async (req, res) => {
       message: issue.message,
       code: issue.code
     }));
-
-    return Respond.badRequest(
-      res,
-      "validation_error",
-      "Invalid payload",
-      { errors: details }
-    );
+    return Respond.badRequest(res, "validation_error", "Invalid payload", { errors: details });
   }
 
   const now = new Date();
   const results = [];
   const ops = [];
+  const touchedDeviceIds = new Set();
 
   for (const c of parsed.data.chunks) {
     try {
       const endAt = new Date(c.logClock.clientSideTimeEpochMs);
       const startAt = new Date(endAt.getTime() - 5 * 60 * 1000);
 
+      // Upsert / update device last seen consistently on the same field
       const device = await Device.findOneAndUpdate(
         { deviceId: c.deviceId },
-        { $setOnInsert: { deviceId: c.deviceId }, $set: { lastSeenAt: now } },
+        {
+          $setOnInsert: { deviceId: c.deviceId },
+          $set: { lastSeen: now, status: "online" } // <— unified: lastSeen (not lastSeenAt)
+        },
         { upsert: true, new: true }
       );
 
-      const details = (c.logDetails || []).map((d) => ({
+      const details = (c.logDetails || []).map(d => ({
         ...d,
-        appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" }),
+        appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" })
       }));
 
       ops.push({
@@ -52,24 +52,26 @@ exports.ingest = async (req, res) => {
               deviceId: c.deviceId,
               startAt,
               endAt,
-              serverReceivedAt: now,
+              serverReceivedAt: now
             },
             $set: {
               userRef: { userId: device.userId || null, username: device.username || null },
-              serverClientDriftMs: endAt.getTime() - now.getTime(),
+              serverClientDriftMs: now.getTime() - endAt.getTime(), // positive if server is later
               logClock: c.logClock,
               logTotals: c.logTotals,
-              logDetails: details,
-            },
+              logDetails: details
+            }
           },
-          upsert: true,
-        },
+          upsert: true
+        }
       });
+
+      touchedDeviceIds.add(c.deviceId);
 
       results.push({
         deviceId: c.deviceId,
         endAtEpochMs: c.logClock.clientSideTimeEpochMs,
-        status: "pending",
+        status: "pending"
       });
     } catch (e) {
       console.error("ingest prepare error", e);
@@ -77,19 +79,19 @@ exports.ingest = async (req, res) => {
         deviceId: c.deviceId,
         endAtEpochMs: c.logClock?.clientSideTimeEpochMs,
         status: "failed",
-        error: "prepare_error",
+        error: "prepare_error"
       });
     }
   }
 
   if (!ops.length) {
-    const failed = results.filter((r) => r.status === "failed").length;
-    return Respond.ok(
-      res,
-      { results },
-      "Nothing to ingest",
-      { inserted: 0, updated: 0, duplicates: 0, failed }
-    );
+    const failed = results.filter(r => r.status === "failed").length;
+    return Respond.ok(res, { results }, "Nothing to ingest", {
+      inserted: 0,
+      updated: 0,
+      duplicates: 0,
+      failed
+    });
   }
 
   try {
@@ -97,22 +99,35 @@ exports.ingest = async (req, res) => {
     const upserts = write.upsertedCount || 0;
     const modified = write.modifiedCount || 0;
 
-    // naive distribution for statuses
+    // mark result statuses
     let inserted = upserts;
     let updated = modified;
     for (let i = 0; i < results.length; i++) {
       if (results[i].status !== "pending") continue;
-      if (inserted > 0) { results[i].status = "inserted"; inserted--; continue; }
-      if (updated > 0) { results[i].status = "updated"; updated--; continue; }
+      if (inserted > 0) {
+        results[i].status = "inserted";
+        inserted--;
+        continue;
+      }
+      if (updated > 0) {
+        results[i].status = "updated";
+        updated--;
+        continue;
+      }
       results[i].status = "duplicate";
     }
+
+    // Mark all devices seen (robust; do not rely on req.body.deviceId)
+    await Promise.all(
+      Array.from(touchedDeviceIds).map(id => markDeviceSeen(id))
+    );
 
     const duplicates = results.filter(r => r.status === "duplicate").length;
     return Respond.ok(
       res,
       { results },
       "Ingest complete",
-      { inserted: write.upsertedCount || 0, updated: write.modifiedCount || 0, duplicates }
+      { inserted: upserts, updated: modified, duplicates }
     );
   } catch (e) {
     console.error("bulkWrite error", e);
@@ -121,6 +136,15 @@ exports.ingest = async (req, res) => {
     return Respond.error(res, "bulk_write_failed", "Ingest failed", { results, failed });
   }
 };
+
+async function markDeviceSeen(deviceId) {
+  const now = new Date();
+  await Device.findOneAndUpdate(
+    { deviceId },
+    { $set: { lastSeen: now, status: "online" } },
+    { upsert: true, new: true }
+  );
+}
 
 /**
  * GET /api/logs
@@ -135,7 +159,7 @@ exports.list = async (req, res) => {
 
   const docs = await ActivityChunk.find({
     deviceId,
-    endAt: { $gte: fromDate, $lte: toDate },
+    endAt: { $gte: fromDate, $lte: toDate }
   })
     .sort({ endAt: -1 })
     .skip(Number(skip))
@@ -144,7 +168,7 @@ exports.list = async (req, res) => {
 
   const total = await ActivityChunk.countDocuments({
     deviceId,
-    endAt: { $gte: fromDate, $lte: toDate },
+    endAt: { $gte: fromDate, $lte: toDate }
   });
 
   return Respond.paginated(res, { chunks: docs }, { total, limit: Number(limit), skip: Number(skip) });
@@ -172,13 +196,23 @@ exports.summary = async (req, res) => {
         mouseScrolls: { $sum: "$logTotals.mouseScrolls" },
         mouseClicks: { $sum: "$logTotals.mouseClicks" },
         keysPressed: { $sum: "$logTotals.keysPressed" },
-        chunks: { $sum: 1 },
-      },
+        chunks: { $sum: 1 }
+      }
     },
-    { $project: { _id: 0 } },
+    { $project: { _id: 0 } }
   ]);
 
-  return Respond.ok(res, { summary: agg || { activeTime: 0, idleTime: 0, mouseMovements: 0, mouseScrolls: 0, mouseClicks: 0, keysPressed: 0, chunks: 0 } });
+  return Respond.ok(res, {
+    summary: agg || {
+      activeTime: 0,
+      idleTime: 0,
+      mouseMovements: 0,
+      mouseScrolls: 0,
+      mouseClicks: 0,
+      keysPressed: 0,
+      chunks: 0
+    }
+  });
 };
 
 /**
@@ -201,12 +235,12 @@ exports.apps = async (req, res) => {
         activeTime: { $sum: "$logDetails.activeTime" },
         idleTime: { $sum: "$logDetails.idleTime" },
         mouseClicks: { $sum: "$logDetails.mouseClicks" },
-        keysPressed: { $sum: "$logDetails.keysPressed" },
-      },
+        keysPressed: { $sum: "$logDetails.keysPressed" }
+      }
     },
     { $sort: { activeTime: -1 } },
     { $limit: Number(top) },
-    { $project: { _id: 0, appName: "$_id", activeTime: 1, idleTime: 1, mouseClicks: 1, keysPressed: 1 } },
+    { $project: { _id: 0, appName: "$_id", activeTime: 1, idleTime: 1, mouseClicks: 1, keysPressed: 1 } }
   ]);
 
   return Respond.ok(res, { apps: rows });
@@ -218,15 +252,10 @@ exports.apps = async (req, res) => {
 exports.titles = async (req, res) => {
   const { deviceId, appName, from, to, top = 20 } = req.query;
   if (!deviceId || !appName) {
-    return Respond.badRequest(
-      res,
-      "deviceId_and_appName_required",
-      "deviceId and appName are required"
-    );
+    return Respond.badRequest(res, "deviceId_and_appName_required", "deviceId and appName are required");
   }
 
-  const parseDate = (v) =>
-    !v ? null : isFinite(v) ? new Date(Number(v)) : new Date(v);
+  const parseDate = (v) => (!v ? null : (isFinite(v) ? new Date(Number(v)) : new Date(v)));
   const fromDate = parseDate(from) || new Date(Date.now() - 24 * 3600 * 1000);
   const toDate = parseDate(to) || new Date();
 
@@ -236,18 +265,14 @@ exports.titles = async (req, res) => {
     { $match: { "logDetails.appName": appName } },
     {
       $group: {
-        _id: {
-          title: "$logDetails.title",
-          processName: "$logDetails.processName",
-          appName: "$logDetails.appName"
-        },
+        _id: { title: "$logDetails.title", processName: "$logDetails.processName", appName: "$logDetails.appName" },
         activeTime: { $sum: "$logDetails.activeTime" },
         idleTime: { $sum: "$logDetails.idleTime" },
         mouseMovements: { $sum: "$logDetails.mouseMovements" },
         mouseScrolls: { $sum: "$logDetails.mouseScrolls" },
         mouseClicks: { $sum: "$logDetails.mouseClicks" },
         keysPressed: { $sum: "$logDetails.keysPressed" },
-        count: { $sum: 1 } // number of chunks that included this title
+        count: { $sum: 1 }
       }
     },
     { $sort: { activeTime: -1 } },
@@ -272,10 +297,8 @@ exports.titles = async (req, res) => {
   return Respond.ok(res, { titles: rows });
 };
 
-
 /**
  * GET /api/logs/missing
- * Returns endAtEpochMs list the server ALREADY has in the window.
  */
 exports.missing = async (req, res) => {
   const { deviceId, from, to } = req.query;
@@ -290,10 +313,9 @@ exports.missing = async (req, res) => {
     { endAt: 1, _id: 0 }
   ).lean();
 
-  const have = docs.map((d) => d.endAt.getTime());
+  const have = docs.map(d => d.endAt.getTime());
   return Respond.ok(res, { have }, "Existing endAt list");
 };
-
 
 // NEW: delete all logs
 exports.deleteAllLogs = async (req, res) => {
