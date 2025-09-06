@@ -7,6 +7,9 @@ const deviceSchema = new mongoose.Schema({
   status: { type: String, enum: ["online","offline","idle","error"], default: "offline" },
   lastSeen: { type: Date },
   meta: { type: Object, default: {} },
+  // NEW fields
+  username: { type: String, default: null, index: true },
+  userId:   { type: String, default: null, index: true },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Device", deviceSchema);
