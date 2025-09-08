@@ -1,14 +1,14 @@
-import Config from '../models/configModel';
+const Config = require('../models/config');
 
 exports.getConfig = async (req, res) => {
   try {
     const config = await Config.findOne();
     if (!config) return res.status(404).json({ error: 'Config not found' });
-    res.json(config);
+    res.json({ data: config });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-}
+};
 
 exports.updateConfig = async (req, res) => {
   try {
@@ -18,14 +18,14 @@ exports.updateConfig = async (req, res) => {
     if (!config) {
       config = new Config({ chunkTime, idleThresholdPerChunk, screenshotRequired });
     } else {
-      config.chunkTime = chunkTime ?? config.chunkTime;
-      config.idleThresholdPerChunk = idleThresholdPerChunk ?? config.idleThresholdPerChunk;
-      config.screenshotRequired = screenshotRequired ?? config.screenshotRequired;
+      if (chunkTime !== undefined) config.chunkTime = chunkTime;
+      if (idleThresholdPerChunk !== undefined) config.idleThresholdPerChunk = idleThresholdPerChunk;
+      if (screenshotRequired !== undefined) config.screenshotRequired = screenshotRequired;
     }
 
     await config.save();
-    res.json(config);
+    res.json({ data: config });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-}
+};
