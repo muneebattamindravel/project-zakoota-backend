@@ -25,7 +25,7 @@ exports.ingest = async (req, res) => {
   // 🔹 Load config (or use defaults)
   const config = await Config.findOne();
   const chunkTime = config?.chunkTime || 60;                // seconds
-  const idleThresholdPerChunk = config?.idleThresholdPerChunk || 15; // seconds
+  const idleThresholdPerChunk = config?.idleThresholdPerChunk || 30; // seconds
   const screenshotRequired = config?.screenshotRequired || false;
 
   for (const c of parsed.data.chunks) {
