@@ -4,10 +4,8 @@ const ActivityChunk = require("../models/activityChunk");
 const Respond = require("../utils/respond");
 const { ingestBodyZ } = require("../validation/logSchemas");
 const { guessAppName } = require("../utils/appNormalize");
+const Config = require('../models/configModel'); // make sure you created this model
 
-/**
- * POST /api/logs/ingest
- */
 exports.ingest = async (req, res) => {
   const parsed = ingestBodyZ.safeParse(req.body);
   if (!parsed.success) {
@@ -24,17 +22,23 @@ exports.ingest = async (req, res) => {
   const ops = [];
   const touchedDeviceIds = new Set();
 
+  // 🔹 Load config (or use defaults)
+  const config = await Config.findOne();
+  const chunkTime = config?.chunkTime || 60;                // seconds
+  const idleThresholdPerChunk = config?.idleThresholdPerChunk || 15; // seconds
+  const screenshotRequired = config?.screenshotRequired || false;
+
   for (const c of parsed.data.chunks) {
     try {
       const endAt = new Date(c.logClock.clientSideTimeEpochMs);
-      const startAt = new Date(endAt.getTime() - 1 * 60 * 1000);
+      const startAt = new Date(endAt.getTime() - chunkTime * 1000); // use DB config
 
-      // Upsert / update device last seen consistently on the same field
+      // Upsert / update device last seen
       const device = await Device.findOneAndUpdate(
         { deviceId: c.deviceId },
         {
           $setOnInsert: { deviceId: c.deviceId },
-          $set: { lastSeen: now, status: "online" } // <— unified: lastSeen (not lastSeenAt)
+          $set: { lastSeen: now, status: "online" }
         },
         { upsert: true, new: true }
       );
@@ -56,10 +60,16 @@ exports.ingest = async (req, res) => {
             },
             $set: {
               userRef: { userId: device.userId || null, username: device.username || null },
-              serverClientDriftMs: now.getTime() - endAt.getTime(), // positive if server is later
+              serverClientDriftMs: now.getTime() - endAt.getTime(),
               logClock: c.logClock,
               logTotals: c.logTotals,
-              logDetails: details
+              logDetails: details,
+              // 🔹 persist config context in chunk
+              configSnapshot: {
+                chunkTime,
+                idleThresholdPerChunk,
+                screenshotRequired
+              }
             }
           },
           upsert: true
@@ -117,10 +127,8 @@ exports.ingest = async (req, res) => {
       results[i].status = "duplicate";
     }
 
-    // Mark all devices seen (robust; do not rely on req.body.deviceId)
-    await Promise.all(
-      Array.from(touchedDeviceIds).map(id => markDeviceSeen(id))
-    );
+    // mark devices seen
+    await Promise.all(Array.from(touchedDeviceIds).map(id => markDeviceSeen(id)));
 
     const duplicates = results.filter(r => r.status === "duplicate").length;
     return Respond.ok(
@@ -136,6 +144,7 @@ exports.ingest = async (req, res) => {
     return Respond.error(res, "bulk_write_failed", "Ingest failed", { results, failed });
   }
 };
+
 
 async function markDeviceSeen(deviceId) {
   const now = new Date();
