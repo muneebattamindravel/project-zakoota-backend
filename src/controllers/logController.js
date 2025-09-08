@@ -27,7 +27,7 @@ exports.ingest = async (req, res) => {
   for (const c of parsed.data.chunks) {
     try {
       const endAt = new Date(c.logClock.clientSideTimeEpochMs);
-      const startAt = new Date(endAt.getTime() - 5 * 60 * 1000);
+      const startAt = new Date(endAt.getTime() - 1 * 60 * 1000);
 
       // Upsert / update device last seen consistently on the same field
       const device = await Device.findOneAndUpdate(
