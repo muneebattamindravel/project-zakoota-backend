@@ -4,7 +4,7 @@ const ActivityChunk = require("../models/activityChunk");
 const Respond = require("../utils/respond");
 const { ingestBodyZ } = require("../validation/logSchemas");
 const { guessAppName } = require("../utils/appNormalize");
-const Config = require('../models/configModel'); // make sure you created this model
+const Config = require('../models/config'); // make sure you created this model
 
 exports.ingest = async (req, res) => {
   const parsed = ingestBodyZ.safeParse(req.body);
