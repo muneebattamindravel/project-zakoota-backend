@@ -38,11 +38,15 @@ const apiLimiter  = rateLimit({ windowMs: 60 * 1000, max: 600 });
 const authRoutes   = require("./routes/auth");
 const deviceRoutes = require("./routes/devices");
 const logRoutes    = require("./routes/logs");
+const configRoutes    = require("./routes/config");
 
 // Mount under /zakoota-api/*
 app.use(`${API_PREFIX}/auth`,    authLimiter, authRoutes);
 app.use(`${API_PREFIX}/devices`, apiLimiter,  deviceRoutes);
 app.use(`${API_PREFIX}/logs`,    apiLimiter,  logRoutes);
+app.use(`${API_PREFIX}/config`,    apiLimiter,  configRoutes);
+
+app.use('/zakoota-api/config', configRoutes);
 
 // Health
 app.get(`${API_PREFIX}/health`, (req, res) => {
