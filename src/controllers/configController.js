@@ -1,6 +1,6 @@
 import Config from '../models/configModel';
 
-export async function getConfig(req, res) {
+exports.getConfig = async (req, res) => {
   try {
     const config = await Config.findOne();
     if (!config) return res.status(404).json({ error: 'Config not found' });
@@ -10,7 +10,7 @@ export async function getConfig(req, res) {
   }
 }
 
-export async function updateConfig(req, res) {
+exports.updateConfig = async (req, res) => {
   try {
     const { chunkTime, idleThresholdPerChunk, screenshotRequired } = req.body;
 
