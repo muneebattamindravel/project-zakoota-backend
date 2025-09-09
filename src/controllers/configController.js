@@ -3,7 +3,7 @@ const Device = require('../models/device');
 
 exports.getUserConfig = async (req, res) => {
   try {
-    const { deviceId } = req.body || {}; // ✅ handles undefined body
+    const { deviceId } = req.body || {}; // safe destructure
 
     const config = await Config.findOne();
     if (!config) {
@@ -18,11 +18,14 @@ exports.getUserConfig = async (req, res) => {
       checkInTime: '2024-09-09T09:00:00Z',
     };
 
-    // Case: deviceId provided and non-empty
     if (deviceId && String(deviceId).trim() !== '') {
-      const device = await Device.findOne({ deviceId: String(deviceId).trim() });
+      const cleanedId = String(deviceId).trim();
+      console.log("🔎 Looking up deviceId:", cleanedId);
+
+      const device = await Device.findOne({ deviceId: cleanedId });
+      console.log("📦 Found device:", device);
+
       if (device) {
-        // Case: device found → use device info
         userInfo = {
           profileURL: device.profileURL || userInfo.profileURL,
           name: device.name || userInfo.name,
@@ -30,9 +33,7 @@ exports.getUserConfig = async (req, res) => {
           checkInTime: device.checkInTime || userInfo.checkInTime,
         };
       }
-      // else → keep default userInfo
     }
-    // else → no deviceId → keep default userInfo
 
     res.json({
       data: {
@@ -45,7 +46,6 @@ exports.getUserConfig = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
 
 
 exports.updateConfig = async (req, res) => {
