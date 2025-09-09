@@ -10,18 +10,22 @@ exports.getUserConfig = async (req, res) => {
     const config = await Config.findOne();
     if (!config) return res.status(404).json({ error: 'Config not found' });
 
-    // For now, mock user info. Later link to matrix system
-    const mockUser = {
-      profileURL: 'https://randomuser.me/api/portraits/lego/1.jpg',
-      name: 'John Doe',
-      designation: 'Project Manager', 
-      checkInTime: "2024-09-09T09:00:00Z",
-    };
+    const device = await Device.findOne({ deviceId });
+
+    let userInfo = {};
+    if (device) {
+      userInfo = {
+        profileURL: device.profileURL || 'https://randomuser.me/api/portraits/lego/1.jpg',
+        name: device.name || 'Unnamed User',
+        designation: device.designation || 'N/A',
+        checkInTime: device.checkInTime || null,
+      };
+    }
 
     res.json({
       data: {
         ...config.toObject(),
-        ...mockUser,
+        ...userInfo,
       },
     });
   } catch (err) {

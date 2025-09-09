@@ -16,23 +16,30 @@ exports.list = async (_req, res) => {
   return Respond.ok(res, { devices: enriched }, 'Devices listed');
 };
 
-exports.assign = async (req, res) => {
-  const { deviceId } = req.params;
-  const { username, userId } = req.body;
-  if (!deviceId || (!username && !userId)) {
-    return Respond.badRequest(res, 'assign_invalid', 'deviceId and one of username/userId are required');
+exports.assignDevice = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const { username, userId, profileURL, name, designation, checkInTime } = req.body;
+
+    const device = await Device.findOneAndUpdate(
+      { deviceId },
+      {
+        $set: {
+          username,
+          userId,
+          profileURL,
+          name,
+          designation,
+          checkInTime: checkInTime ? new Date(checkInTime) : new Date(),
+        },
+      },
+      { new: true, upsert: true }
+    );
+
+    res.json({ data: device });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  const dev = await Device.findOneAndUpdate(
-    { deviceId },
-    { $set: { username: username || null, userId: userId || null } },
-    { upsert: true, new: true }
-  );
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  await ActivityChunk.updateMany(
-    { deviceId, endAt: { $gte: since } },
-    { $set: { userRef: { username: username || null, userId: userId || null } } }
-  );
-  return Respond.ok(res, { device: dev }, 'Device assigned');
 };
 
 // NEW: delete all devices
