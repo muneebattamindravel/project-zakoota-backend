@@ -1,4 +1,5 @@
 const Config = require('../models/config');
+const Device = require('../models/device');
 
 exports.getUserConfig = async (req, res) => {
   try {
