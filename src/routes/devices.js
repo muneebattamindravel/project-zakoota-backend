@@ -5,7 +5,7 @@ const deviceController = require("../controllers/deviceController");
 const router = express.Router();
 
 router.get("/", asyncHandler(deviceController.list));
-router.patch("/:deviceId", asyncHandler(deviceController.assign));
+router.patch("/:deviceId", asyncHandler(deviceController.assignDevice));
 router.delete("/", deviceController.deleteAllDevices);
 
 module.exports = router;
