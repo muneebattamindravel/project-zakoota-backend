@@ -29,15 +29,15 @@ exports.getUserConfig = async (req, res) => {
 
 exports.updateConfig = async (req, res) => {
   try {
-    const { chunkTime, idleThresholdPerChunk, screenshotRequired } = req.body;
+    const { chunkTime, idleThresholdPerChunk, isZaiminaarEnabled } = req.body;
 
     let config = await Config.findOne();
     if (!config) {
-      config = new Config({ chunkTime, idleThresholdPerChunk, screenshotRequired });
+      config = new Config({ chunkTime, idleThresholdPerChunk, isZaiminaarEnabled });
     } else {
       if (chunkTime !== undefined) config.chunkTime = chunkTime;
       if (idleThresholdPerChunk !== undefined) config.idleThresholdPerChunk = idleThresholdPerChunk;
-      if (screenshotRequired !== undefined) config.screenshotRequired = screenshotRequired;
+      if (isZaiminaarEnabled !== undefined) config.isZaiminaarEnabled = isZaiminaarEnabled;
     }
 
     await config.save();
@@ -46,3 +46,4 @@ exports.updateConfig = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
