@@ -12,8 +12,10 @@ exports.getUserConfig = async (req, res) => {
 
     // For now, mock user info. Later link to matrix system
     const mockUser = {
-      userProfileImageURL: 'https://randomuser.me/api/portraits/lego/1.jpg',
-      userName: 'John Doe',
+      profileURL: 'https://randomuser.me/api/portraits/lego/1.jpg',
+      name: 'John Doe',
+      designation: 'Project Manager', 
+      checkInTime: "2024-09-09T09:00:00Z",
     };
 
     res.json({
