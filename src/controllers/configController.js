@@ -27,6 +27,14 @@ exports.getUserConfig = async (req, res) => {
           checkInTime: device.checkInTime || null,
         };
       }
+      else {
+        userInfo = {
+          profileURL: 'https://randomuser.me/api/portraits/lego/1.jpg',
+          name: 'John Doe',
+          designation: 'Project Manager',
+          checkInTime: '2024-09-09T09:00:00Z',
+        };
+      }
     }
 
     res.json({
