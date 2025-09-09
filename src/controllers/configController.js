@@ -1,10 +1,27 @@
 const Config = require('../models/config');
 
-exports.getConfig = async (req, res) => {
+exports.getUserConfig = async (req, res) => {
   try {
+    const { deviceId } = req.body;
+    if (!deviceId) {
+      return res.status(400).json({ error: 'deviceId is required' });
+    }
+
     const config = await Config.findOne();
     if (!config) return res.status(404).json({ error: 'Config not found' });
-    res.json({ data: config });
+
+    // For now, mock user info. Later link to matrix system
+    const mockUser = {
+      userProfileImageURL: 'https://randomuser.me/api/portraits/lego/1.jpg',
+      userName: 'John Doe',
+    };
+
+    res.json({
+      data: {
+        ...config.toObject(),
+        ...mockUser,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
