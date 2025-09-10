@@ -3,34 +3,32 @@ const Device = require('../models/device');
 
 exports.getUserConfig = async (req, res) => {
   try {
-    const { deviceId } = req.body || {}; // safe destructure
-
+    const { deviceId } = req.body;
     const config = await Config.findOne();
-    if (!config) {
-      return res.status(404).json({ error: 'Config not found' });
-    }
+    if (!config) return res.status(404).json({ error: 'Config not found' });
 
-    // Default fallback user info
     let userInfo = {
-      profileURL: 'https://randomuser.me/api/portraits/lego/1.jpg',
-      name: 'John Doe',
-      designation: 'Project Manager',
-      checkInTime: '2024-09-09T09:00:00Z',
+      profileURL: null,
+      name: null,
+      designation: null,
+      checkInTime: null,
     };
 
-    if (deviceId && String(deviceId).trim() !== '') {
-      const cleanedId = String(deviceId).trim();
-      console.log("🔎 Looking up deviceId:", cleanedId);
-
-      const device = await Device.findOne({ deviceId: cleanedId });
-      console.log("📦 Found device:", device);
-
+    if (deviceId) {
+      const device = await Device.findOne({ deviceId });
       if (device) {
         userInfo = {
-          profileURL: device.profileURL || userInfo.profileURL,
-          name: device.name || userInfo.name,
-          designation: device.designation || userInfo.designation,
-          checkInTime: device.checkInTime || userInfo.checkInTime,
+          profileURL: device.profileURL || null,
+          name: device.name || null,
+          designation: device.designation || null,
+          checkInTime: device.checkInTime || null,
+        };
+      } else {
+        userInfo = {
+          profileURL: 'https://randomuser.me/api/portraits/lego/1.jpg',
+          name: 'John Doe',
+          designation: 'Project Manager',
+          checkInTime: '2024-09-09T09:00:00Z',
         };
       }
     }
@@ -47,18 +45,35 @@ exports.getUserConfig = async (req, res) => {
   }
 };
 
-
 exports.updateConfig = async (req, res) => {
   try {
-    const { chunkTime, idleThresholdPerChunk, isZaiminaarEnabled } = req.body;
+    const {
+      chunkTime,
+      idleThresholdPerChunk,
+      isZaiminaarEnabled,
+      clientHeartbeatDelay,
+      serviceHeartbeatDelay,
+    } = req.body;
 
     let config = await Config.findOne();
     if (!config) {
-      config = new Config({ chunkTime, idleThresholdPerChunk, isZaiminaarEnabled });
+      config = new Config({
+        chunkTime,
+        idleThresholdPerChunk,
+        isZaiminaarEnabled,
+        clientHeartbeatDelay,
+        serviceHeartbeatDelay,
+      });
     } else {
       if (chunkTime !== undefined) config.chunkTime = chunkTime;
-      if (idleThresholdPerChunk !== undefined) config.idleThresholdPerChunk = idleThresholdPerChunk;
-      if (isZaiminaarEnabled !== undefined) config.isZaiminaarEnabled = isZaiminaarEnabled;
+      if (idleThresholdPerChunk !== undefined)
+        config.idleThresholdPerChunk = idleThresholdPerChunk;
+      if (isZaiminaarEnabled !== undefined)
+        config.isZaiminaarEnabled = isZaiminaarEnabled;
+      if (clientHeartbeatDelay !== undefined)
+        config.clientHeartbeatDelay = clientHeartbeatDelay;
+      if (serviceHeartbeatDelay !== undefined)
+        config.serviceHeartbeatDelay = serviceHeartbeatDelay;
     }
 
     await config.save();
@@ -67,4 +82,3 @@ exports.updateConfig = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-

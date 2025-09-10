@@ -3,17 +3,16 @@ const mongoose = require('mongoose');
 const deviceSchema = new mongoose.Schema(
   {
     deviceId: { type: String, required: true, unique: true },
-    username: { type: String }, // existing field
-    userId: { type: String },   // existing field
+    username: String,
+    userId: String,
+    name: String,
+    designation: String,
+    profileURL: String,
+    checkInTime: Date,
 
-    // 🔹 New fields for assigned user info
-    profileURL: { type: String, default: '' },
-    name: { type: String, default: '' },
-    designation: { type: String, default: '' },
-    checkInTime: { type: Date, default: null },
-
-    status: { type: String, default: 'offline' },
-    lastSeen: { type: Date, default: null },
+    // NEW
+    lastClientHeartbeat: Date,
+    lastServiceHeartbeat: Date,
   },
   { timestamps: true }
 );

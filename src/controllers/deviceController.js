@@ -47,3 +47,28 @@ exports.deleteAllDevices = async (req, res) => {
   await Device.deleteMany({});
   res.json({ ok: true, message: "All devices deleted" });
 };
+
+exports.heartbeat = async (req, res) => {
+  try {
+    const { deviceId, type } = req.body; // type = "client" | "service"
+    if (!deviceId || !type) {
+      return res.status(400).json({ error: "deviceId and type are required" });
+    }
+
+    const now = new Date();
+    const update = {};
+
+    if (type === "client") update.lastClientHeartbeat = now;
+    if (type === "service") update.lastServiceHeartbeat = now;
+
+    const device = await Device.findOneAndUpdate(
+      { deviceId },
+      { $set: update },
+      { new: true, upsert: true }
+    );
+
+    res.json({ ok: true, data: device });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
