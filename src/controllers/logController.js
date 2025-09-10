@@ -33,16 +33,6 @@ exports.ingest = async (req, res) => {
       const endAt = new Date(c.logClock.clientSideTimeEpochMs);
       const startAt = new Date(endAt.getTime() - chunkTime * 1000); // use DB config
 
-      // Upsert / update device last seen
-      const device = await Device.findOneAndUpdate(
-        { deviceId: c.deviceId },
-        {
-          $setOnInsert: { deviceId: c.deviceId },
-          $set: { lastSeen: now, status: "online" }
-        },
-        { upsert: true, new: true }
-      );
-
       const details = (c.logDetails || []).map(d => ({
         ...d,
         appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" })
@@ -144,7 +134,6 @@ exports.ingest = async (req, res) => {
     return Respond.error(res, "bulk_write_failed", "Ingest failed", { results, failed });
   }
 };
-
 
 async function markDeviceSeen(deviceId) {
   const now = new Date();
