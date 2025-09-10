@@ -7,5 +7,6 @@ const router = express.Router();
 router.get("/", asyncHandler(deviceController.list));
 router.patch("/:deviceId", asyncHandler(deviceController.assignDevice));
 router.delete("/", deviceController.deleteAllDevices);
+router.post('/heartbeat', deviceController.heartbeat);
 
 module.exports = router;
