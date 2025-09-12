@@ -47,13 +47,7 @@ exports.getUserConfig = async (req, res) => {
 
 exports.updateConfig = async (req, res) => {
   try {
-    const {
-      chunkTime,
-      idleThresholdPerChunk,
-      isZaiminaarEnabled,
-      clientHeartbeatDelay,
-      serviceHeartbeatDelay,
-    } = req.body;
+    const { chunkTime, idleThresholdPerChunk, isZaiminaarEnabled, clientHeartbeatDelay, serviceHeartbeatDelay } = req.body;
 
     let config = await Config.findOne();
     if (!config) {
@@ -63,17 +57,17 @@ exports.updateConfig = async (req, res) => {
         isZaiminaarEnabled,
         clientHeartbeatDelay,
         serviceHeartbeatDelay,
+        version: 1, // first version
       });
     } else {
       if (chunkTime !== undefined) config.chunkTime = chunkTime;
-      if (idleThresholdPerChunk !== undefined)
-        config.idleThresholdPerChunk = idleThresholdPerChunk;
-      if (isZaiminaarEnabled !== undefined)
-        config.isZaiminaarEnabled = isZaiminaarEnabled;
-      if (clientHeartbeatDelay !== undefined)
-        config.clientHeartbeatDelay = clientHeartbeatDelay;
-      if (serviceHeartbeatDelay !== undefined)
-        config.serviceHeartbeatDelay = serviceHeartbeatDelay;
+      if (idleThresholdPerChunk !== undefined) config.idleThresholdPerChunk = idleThresholdPerChunk;
+      if (isZaiminaarEnabled !== undefined) config.isZaiminaarEnabled = isZaiminaarEnabled;
+      if (clientHeartbeatDelay !== undefined) config.clientHeartbeatDelay = clientHeartbeatDelay;
+      if (serviceHeartbeatDelay !== undefined) config.serviceHeartbeatDelay = serviceHeartbeatDelay;
+
+      // bump version automatically
+      config.version = (config.version || 0) + 1;
     }
 
     await config.save();

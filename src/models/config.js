@@ -8,6 +8,8 @@ const configSchema = new mongoose.Schema(
 
     clientHeartbeatDelay: { type: Number, required: true, default: 60 },   // seconds
     serviceHeartbeatDelay: { type: Number, required: true, default: 120 }, // seconds
+
+    version: { type: Number, required: true, default: 1 },
   },
   { timestamps: true }
 );
