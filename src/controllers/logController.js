@@ -33,6 +33,9 @@ exports.ingest = async (req, res) => {
       const endAt = new Date(c.logClock.clientSideTimeEpochMs);
       const startAt = new Date(endAt.getTime() - chunkTime * 1000); // use DB config
 
+      // 🔹 Fetch device info (but no longer update lastSeen)
+      const device = await Device.findOne({ deviceId: c.deviceId });
+
       const details = (c.logDetails || []).map(d => ({
         ...d,
         appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" })
@@ -49,12 +52,14 @@ exports.ingest = async (req, res) => {
               serverReceivedAt: now
             },
             $set: {
-              userRef: { userId: device.userId || null, username: device.username || null },
+              userRef: {
+                userId: device?.userId || null,
+                username: device?.username || null
+              },
               serverClientDriftMs: now.getTime() - endAt.getTime(),
               logClock: c.logClock,
               logTotals: c.logTotals,
               logDetails: details,
-              // 🔹 persist config context in chunk
               configSnapshot: {
                 chunkTime,
                 idleThresholdPerChunk,
