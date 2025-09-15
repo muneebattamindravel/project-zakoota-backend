@@ -6,14 +6,6 @@ const { ingestBodyZ } = require("../validation/logSchemas");
 const { guessAppName } = require("../utils/appNormalize");
 const Config = require('../models/config'); // make sure you created this model
 
-const ActivityChunk = require("../models/chunkModel");
-const Config = require("../models/config");
-const Device = require("../models/device");
-const Respond = require("../utils/respond");
-const { ingestBodyZ } = require("../validators/ingestValidator");
-const { guessAppName } = require("../utils/guessAppName");
-const { markDeviceSeen } = require("../utils/markDeviceSeen");
-
 exports.ingest = async (req, res) => {
   const parsed = ingestBodyZ.safeParse(req.body);
   if (!parsed.success) {
@@ -30,18 +22,19 @@ exports.ingest = async (req, res) => {
   const ops = [];
   const touchedDeviceIds = new Set();
 
-  // 🔹 Load config (or defaults)
+  // 🔹 Load config (with defaults if not found)
   const config = await Config.findOne();
-  const chunkTime = config?.chunkTime || 60;                // seconds
+  const chunkTime = config?.chunkTime || 60; // seconds
   const idleThresholdPerChunk = config?.idleThresholdPerChunk || 30; // seconds
   const isZaiminaarEnabled = config?.isZaiminaarEnabled || false;
+  const configVersion = config?.version || 1;
 
   for (const c of parsed.data.chunks) {
     try {
       const endAt = new Date(c.logClock.clientSideTimeEpochMs);
       const startAt = new Date(endAt.getTime() - chunkTime * 1000);
 
-      // Lookup device once (optional, just for userRef)
+      // Lookup device for userRef
       const device = await Device.findOne({ deviceId: c.deviceId });
 
       const details = (c.logDetails || []).map(d => ({
@@ -72,6 +65,7 @@ exports.ingest = async (req, res) => {
                 chunkTime,
                 idleThresholdPerChunk,
                 isZaiminaarEnabled,
+                version: configVersion,
               },
             },
           },
@@ -82,7 +76,7 @@ exports.ingest = async (req, res) => {
       touchedDeviceIds.add(c.deviceId);
 
       results.push({
-        deviceId: c.deviceId, // ✅ always the raw deviceId
+        deviceId: c.deviceId,
         endAtEpochMs: c.logClock.clientSideTimeEpochMs,
         status: "pending",
       });
@@ -146,7 +140,6 @@ exports.ingest = async (req, res) => {
     return Respond.error(res, "bulk_write_failed", "Ingest failed", { results, failed });
   }
 };
-
 
 async function markDeviceSeen(deviceId) {
   const now = new Date();

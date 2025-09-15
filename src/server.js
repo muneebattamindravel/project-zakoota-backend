@@ -9,9 +9,9 @@ const rateLimit = require('express-rate-limit');
 const Respond = require('./utils/respond');
 
 // ---- Config
-const API_PREFIX  = process.env.API_PREFIX || '/zakoota-api';
-const PORT        = Number(process.env.PORT || 6666);
-const MONGO_URI   = process.env.MONGO_URI;
+const API_PREFIX = process.env.API_PREFIX || '/zakoota-api';
+const PORT = Number(process.env.PORT || 6666);
+const MONGO_URI = process.env.MONGO_URI;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 console.log('-------------------------------');
@@ -30,19 +30,19 @@ app.use(morgan('combined'));
 
 // ---- Rate limits
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50 });
-const apiLimiter  = rateLimit({ windowMs: 60 * 1000, max: 600 });
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 600 });
 
 // ---- Routes
-const authRoutes    = require('./routes/auth');
-const deviceRoutes  = require('./routes/devices');
-const logRoutes     = require('./routes/logs');
-const configRoutes  = require('./routes/config');
+const authRoutes = require('./routes/auth');
+const deviceRoutes = require('./routes/devices');
+const logRoutes = require('./routes/logs');
+const configRoutes = require('./routes/config');
 
 // Mount under /zakoota-api/*
-app.use(`${API_PREFIX}/auth`,    authLimiter, authRoutes);
-app.use(`${API_PREFIX}/devices`, apiLimiter,  deviceRoutes);
-app.use(`${API_PREFIX}/logs`,    apiLimiter,  logRoutes);
-app.use(`${API_PREFIX}/config`,  apiLimiter,  configRoutes);
+app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes);
+app.use(`${API_PREFIX}/devices`, apiLimiter, deviceRoutes);
+app.use(`${API_PREFIX}/logs`, apiLimiter, logRoutes);
+app.use(`${API_PREFIX}/config`, apiLimiter, configRoutes);
 
 // Health
 app.get(`${API_PREFIX}/health`, (req, res) => {
