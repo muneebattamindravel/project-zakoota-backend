@@ -6,13 +6,21 @@ const { ingestBodyZ } = require("../validation/logSchemas");
 const { guessAppName } = require("../utils/appNormalize");
 const Config = require('../models/config'); // make sure you created this model
 
+const ActivityChunk = require("../models/chunkModel");
+const Config = require("../models/config");
+const Device = require("../models/device");
+const Respond = require("../utils/respond");
+const { ingestBodyZ } = require("../validators/ingestValidator");
+const { guessAppName } = require("../utils/guessAppName");
+const { markDeviceSeen } = require("../utils/markDeviceSeen");
+
 exports.ingest = async (req, res) => {
   const parsed = ingestBodyZ.safeParse(req.body);
   if (!parsed.success) {
     const details = (parsed.error?.issues || []).map(issue => ({
       path: Array.isArray(issue.path) ? issue.path.join(".") : String(issue.path),
       message: issue.message,
-      code: issue.code
+      code: issue.code,
     }));
     return Respond.badRequest(res, "validation_error", "Invalid payload", { errors: details });
   }
@@ -22,23 +30,23 @@ exports.ingest = async (req, res) => {
   const ops = [];
   const touchedDeviceIds = new Set();
 
-  // 🔹 Load config (or use defaults)
+  // 🔹 Load config (or defaults)
   const config = await Config.findOne();
   const chunkTime = config?.chunkTime || 60;                // seconds
   const idleThresholdPerChunk = config?.idleThresholdPerChunk || 30; // seconds
-  const screenshotRequired = config?.screenshotRequired || false;
+  const isZaiminaarEnabled = config?.isZaiminaarEnabled || false;
 
   for (const c of parsed.data.chunks) {
     try {
       const endAt = new Date(c.logClock.clientSideTimeEpochMs);
-      const startAt = new Date(endAt.getTime() - chunkTime * 1000); // use DB config
+      const startAt = new Date(endAt.getTime() - chunkTime * 1000);
 
-      // 🔹 Fetch device info (but no longer update lastSeen)
+      // Lookup device once (optional, just for userRef)
       const device = await Device.findOne({ deviceId: c.deviceId });
 
       const details = (c.logDetails || []).map(d => ({
         ...d,
-        appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" })
+        appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" }),
       }));
 
       ops.push({
@@ -49,27 +57,34 @@ exports.ingest = async (req, res) => {
               deviceId: c.deviceId,
               startAt,
               endAt,
-              serverReceivedAt: now
+              serverReceivedAt: now,
             },
             $set: {
               userRef: {
                 userId: device?.userId || null,
-                username: device?.username || null
+                username: device?.username || null,
               },
-              ...
-      }
+              serverClientDriftMs: now.getTime() - endAt.getTime(),
+              logClock: c.logClock,
+              logTotals: c.logTotals,
+              logDetails: details,
+              configSnapshot: {
+                chunkTime,
+                idleThresholdPerChunk,
+                isZaiminaarEnabled,
+              },
+            },
           },
-          upsert: true
-        }
+          upsert: true,
+        },
       });
-
 
       touchedDeviceIds.add(c.deviceId);
 
       results.push({
-        deviceId: c.deviceId,
+        deviceId: c.deviceId, // ✅ always the raw deviceId
         endAtEpochMs: c.logClock.clientSideTimeEpochMs,
-        status: "pending"
+        status: "pending",
       });
     } catch (e) {
       console.error("ingest prepare error", e);
@@ -77,7 +92,7 @@ exports.ingest = async (req, res) => {
         deviceId: c.deviceId,
         endAtEpochMs: c.logClock?.clientSideTimeEpochMs,
         status: "failed",
-        error: "prepare_error"
+        error: "prepare_error",
       });
     }
   }
@@ -88,7 +103,7 @@ exports.ingest = async (req, res) => {
       inserted: 0,
       updated: 0,
       duplicates: 0,
-      failed
+      failed,
     });
   }
 
@@ -119,12 +134,11 @@ exports.ingest = async (req, res) => {
     await Promise.all(Array.from(touchedDeviceIds).map(id => markDeviceSeen(id)));
 
     const duplicates = results.filter(r => r.status === "duplicate").length;
-    return Respond.ok(
-      res,
-      { results },
-      "Ingest complete",
-      { inserted: upserts, updated: modified, duplicates }
-    );
+    return Respond.ok(res, { results }, "Ingest complete", {
+      inserted: upserts,
+      updated: modified,
+      duplicates,
+    });
   } catch (e) {
     console.error("bulkWrite error", e);
     for (const r of results) if (r.status === "pending") r.status = "failed";
@@ -132,6 +146,7 @@ exports.ingest = async (req, res) => {
     return Respond.error(res, "bulk_write_failed", "Ingest failed", { results, failed });
   }
 };
+
 
 async function markDeviceSeen(deviceId) {
   const now = new Date();
