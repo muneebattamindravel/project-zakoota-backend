@@ -56,20 +56,13 @@ exports.ingest = async (req, res) => {
                 userId: device?.userId || null,
                 username: device?.username || null
               },
-              serverClientDriftMs: now.getTime() - endAt.getTime(),
-              logClock: c.logClock,
-              logTotals: c.logTotals,
-              logDetails: details,
-              configSnapshot: {
-                chunkTime,
-                idleThresholdPerChunk,
-                screenshotRequired
-              }
-            }
+              ...
+      }
           },
           upsert: true
         }
       });
+
 
       touchedDeviceIds.add(c.deviceId);
 
