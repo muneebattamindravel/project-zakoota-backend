@@ -1,5 +1,5 @@
 const Device = require("../models/device");
-const ActivityChunk = require("../models/activityChunk");
+const Command = require('../models/command');
 const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
@@ -61,14 +61,33 @@ exports.heartbeat = async (req, res) => {
     if (type === "client") update.lastClientHeartbeat = now;
     if (type === "service") update.lastServiceHeartbeat = now;
 
+    // 🔹 Update device heartbeat
     const device = await Device.findOneAndUpdate(
       { deviceId },
       { $set: update },
       { new: true, upsert: true }
     );
 
-    res.json({ ok: true, data: device });
+    let commands = [];
+    if (type === "service") {
+      // 🔹 Only fetch pending commands for service heartbeat
+      const pending = await Command.find({ deviceId, status: "pending" }).sort({ createdAt: 1 });
+      commands = pending.map(cmd => ({
+        id: cmd._id,
+        type: cmd.type,
+        payload: cmd.payload,
+      }));
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        device,
+        commands,
+      },
+    });
   } catch (err) {
+    console.error("heartbeat error:", err);
     res.status(500).json({ error: err.message });
   }
 };

@@ -37,12 +37,16 @@ const authRoutes = require('./routes/auth');
 const deviceRoutes = require('./routes/devices');
 const logRoutes = require('./routes/logs');
 const configRoutes = require('./routes/config');
+const commandRoutes = require('./routes/commands');
+const errorRoutes = require('./routes/errors');
 
 // Mount under /zakoota-api/*
 app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes);
 app.use(`${API_PREFIX}/devices`, apiLimiter, deviceRoutes);
 app.use(`${API_PREFIX}/logs`, apiLimiter, logRoutes);
 app.use(`${API_PREFIX}/config`, apiLimiter, configRoutes);
+app.use(`${API_PREFIX}/commands`, commandRoutes);
+app.use(`${API_PREFIX}/errors`, errorRoutes);
 
 // Health
 app.get(`${API_PREFIX}/health`, (req, res) => {
