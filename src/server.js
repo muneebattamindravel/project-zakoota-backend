@@ -37,8 +37,8 @@ const authRoutes = require('./routes/auth');
 const deviceRoutes = require('./routes/devices');
 const logRoutes = require('./routes/logs');
 const configRoutes = require('./routes/config');
-const commandRoutes = require('./routes/commands');
-const errorRoutes = require('./routes/errors');
+const commandRoutes = require('./routes/command');
+const errorRoutes = require('./routes/error');
 
 // Mount under /zakoota-api/*
 app.use(`${API_PREFIX}/auth`, authLimiter, authRoutes);
