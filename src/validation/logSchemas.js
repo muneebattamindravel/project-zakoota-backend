@@ -21,8 +21,7 @@ const chunkZ = z.object({
   deviceId: z.string().min(1),
   logClock: z.object({
     clientSideTimeEpochMs: z.number().int().nonnegative(),
-    isTimeDirty: z.boolean().optional().default(false),
-    clientTzOffsetMin: z.number().int().optional().default(0)
+    isTimeDirty: z.boolean().optional().default(false)
   }),
   logTotals: z.object({
     activeTime: z.number().nonnegative(),

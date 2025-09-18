@@ -29,7 +29,6 @@ const ActivityChunkSchema = new mongoose.Schema({
   logClock: {
     clientSideTimeEpochMs: { type: Number, required: true },
     isTimeDirty:           { type: Boolean, default: false },
-    clientTzOffsetMin:     { type: Number, default: 0 }
   },
 
   logTotals: {
