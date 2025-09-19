@@ -55,17 +55,33 @@ exports.completeCommand = async (req, res) => {
     }
 };
 
-// For device agents polling
-exports.getPendingCommand = async (deviceId) => {
-    if (!deviceId) return null;
+exports.getPendingCommand = async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        if (!deviceId) {
+            return res.status(400).json({ ok: false, error: 'deviceId is required' });
+        }
 
-    const device = await Device.findOne({ deviceId }).lean();
-    if (!device) return null;
+        // Ensure device exists
+        const device = await Device.findOne({ deviceId }).lean();
+        if (!device) {
+            return res.status(404).json({ ok: false, error: 'Device not found' });
+        }
 
-    const cmd = await Command.findOneAndUpdate(
-        { deviceId, status: 'pending' },
-        { status: 'acknowledged', acknowledgedAt: new Date() },
-        { sort: { createdAt: -1 }, new: true }
-    ).lean();
-    return cmd || null;
+        // Atomically fetch and mark a pending command as acknowledged
+        const cmd = await Command.findOneAndUpdate(
+            { deviceId, status: 'pending' },
+            { status: 'acknowledged', acknowledgedAt: new Date() },
+            { sort: { createdAt: -1 }, new: true }
+        ).lean();
+
+        if (!cmd) {
+            return res.json({ ok: true, data: null, message: 'No pending command' });
+        }
+
+        return res.json({ ok: true, data: cmd });
+    } catch (err) {
+        console.error('getPendingCommand error:', err);
+        res.status(500).json({ ok: false, error: err.message });
+    }
 };
