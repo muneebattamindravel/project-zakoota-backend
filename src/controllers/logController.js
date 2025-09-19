@@ -1,4 +1,3 @@
-// src/controllers/logController.js
 const Device = require("../models/device");
 const ActivityChunk = require("../models/activityChunk");
 const Respond = require("../utils/respond");
@@ -6,14 +5,14 @@ const { ingestBodyZ } = require("../validation/logSchemas");
 const { guessAppName } = require("../utils/appNormalize");
 const Config = require("../models/config");
 
-// ---- INGEST ----
+// ✅ Ingest logs
 exports.ingest = async (req, res) => {
   const parsed = ingestBodyZ.safeParse(req.body);
   if (!parsed.success) {
-    const details = (parsed.error?.issues || []).map(issue => ({
+    const details = (parsed.error?.issues || []).map((issue) => ({
       path: Array.isArray(issue.path) ? issue.path.join(".") : String(issue.path),
       message: issue.message,
-      code: issue.code
+      code: issue.code,
     }));
     return Respond.badRequest(res, "validation_error", "Invalid payload", { errors: details });
   }
@@ -23,12 +22,11 @@ exports.ingest = async (req, res) => {
   const ops = [];
   const touchedDeviceIds = new Set();
 
-  // Load config with defaults
   const config = await Config.findOne();
-  const chunkTime = config?.chunkTime ?? 300;
-  const idleThresholdPerChunk = config?.idleThresholdPerChunk ?? 60;
-  const isZaiminaarEnabled = config?.isZaiminaarEnabled ?? false;
-  const configVersion = config?.version ?? 1;
+  const chunkTime = config?.chunkTime || 300;
+  const idleThresholdPerChunk = config?.idleThresholdPerChunk || 60;
+  const isZaiminaarEnabled = config?.isZaiminaarEnabled || false;
+  const configVersion = config?.version || 1;
 
   for (const c of parsed.data.chunks) {
     try {
@@ -37,20 +35,10 @@ exports.ingest = async (req, res) => {
 
       const device = await Device.findOne({ deviceId: c.deviceId });
 
-      // normalize details
-      const details = (c.logDetails || []).map(d => ({
+      const details = (c.logDetails || []).map((d) => ({
         ...d,
-        appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" })
+        appName: d.appName || guessAppName({ processName: d.processName, title: d.title || "" }),
       }));
-
-      const totals = {
-        activeTime: c.logTotals?.activeTime ?? 0,
-        idleTime: c.logTotals?.idleTime ?? 0,
-        mouseMovements: c.logTotals?.mouseMovements ?? 0,
-        mouseScrolls: c.logTotals?.mouseScrolls ?? c.logTotals?.mouseScolls ?? 0,
-        mouseClicks: c.logTotals?.mouseClicks ?? 0,
-        keysPressed: c.logTotals?.keysPressed ?? 0
-      };
 
       ops.push({
         updateOne: {
@@ -60,27 +48,27 @@ exports.ingest = async (req, res) => {
               deviceId: c.deviceId,
               startAt,
               endAt,
-              serverReceivedAt: now
+              serverReceivedAt: now,
             },
             $set: {
               userRef: {
                 userId: device?.userId || null,
-                username: device?.username || null
+                username: device?.username || null,
               },
               serverClientDriftMs: now.getTime() - endAt.getTime(),
               logClock: c.logClock,
-              logTotals: totals,
+              logTotals: c.logTotals,
               logDetails: details,
               configSnapshot: {
                 chunkTime,
                 idleThresholdPerChunk,
                 isZaiminaarEnabled,
-                version: configVersion
-              }
-            }
+                version: configVersion,
+              },
+            },
           },
-          upsert: true
-        }
+          upsert: true,
+        },
       });
 
       touchedDeviceIds.add(c.deviceId);
@@ -88,53 +76,73 @@ exports.ingest = async (req, res) => {
       results.push({
         deviceId: c.deviceId,
         endAtEpochMs: c.logClock.clientSideTimeEpochMs,
-        status: "pending"
+        status: "pending",
       });
-    } catch (err) {
-      console.error("ingest prepare error", err);
+    } catch (e) {
+      console.error("ingest prepare error", e);
       results.push({
         deviceId: c.deviceId,
         endAtEpochMs: c.logClock?.clientSideTimeEpochMs,
         status: "failed",
-        error: "prepare_error"
+        error: "prepare_error",
       });
     }
   }
 
   if (!ops.length) {
+    const failed = results.filter((r) => r.status === "failed").length;
     return Respond.ok(res, { results }, "Nothing to ingest", {
-      inserted: 0, updated: 0, duplicates: 0, failed: results.filter(r => r.status === "failed").length
+      inserted: 0,
+      updated: 0,
+      duplicates: 0,
+      failed,
     });
   }
 
   try {
     const write = await ActivityChunk.bulkWrite(ops, { ordered: false });
-    let inserted = write.upsertedCount || 0;
-    let updated = write.modifiedCount || 0;
+    const upserts = write.upsertedCount || 0;
+    const modified = write.modifiedCount || 0;
 
-    for (let r of results) {
-      if (r.status !== "pending") continue;
-      if (inserted > 0) { r.status = "inserted"; inserted--; continue; }
-      if (updated > 0) { r.status = "updated"; updated--; continue; }
-      r.status = "duplicate";
+    let inserted = upserts;
+    let updated = modified;
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].status !== "pending") continue;
+      if (inserted > 0) {
+        results[i].status = "inserted";
+        inserted--;
+        continue;
+      }
+      if (updated > 0) {
+        results[i].status = "updated";
+        updated--;
+        continue;
+      }
+      results[i].status = "duplicate";
     }
 
-    await Promise.all(Array.from(touchedDeviceIds).map(id => markDeviceSeen(id)));
+    await Promise.all(Array.from(touchedDeviceIds).map((id) => markDeviceSeen(id)));
 
+    const duplicates = results.filter((r) => r.status === "duplicate").length;
     return Respond.ok(res, { results }, "Ingest complete", {
-      inserted: write.upsertedCount || 0,
-      updated: write.modifiedCount || 0,
-      duplicates: results.filter(r => r.status === "duplicate").length
+      inserted: upserts,
+      updated: modified,
+      duplicates,
     });
-  } catch (err) {
-    console.error("bulkWrite error", err);
-    results.forEach(r => { if (r.status === "pending") r.status = "failed"; });
-    return Respond.error(res, "bulk_write_failed", "Ingest failed", { results });
+  } catch (e) {
+    console.error("bulkWrite error", e);
+    for (const r of results) if (r.status === "pending") r.status = "failed";
+    const failed = results.filter((r) => r.status === "failed").length;
+    return Respond.error(res, "bulk_write_failed", "Ingest failed", { results, failed });
   }
 };
 
 async function markDeviceSeen(deviceId) {
-  await Device.findOneAndUpdate({ deviceId }, { $set: { lastSeen: new Date() } }, { upsert: true });
+  await Device.findOneAndUpdate(
+    { deviceId },
+    { $set: { lastSeen: new Date(), status: "online" } },
+    { upsert: true, new: true }
+  );
 }
 
 // ---- list, summary, apps, titles, missing, deleteAllLogs remain unchanged ----
