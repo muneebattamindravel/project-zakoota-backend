@@ -7,8 +7,7 @@ const ALLOWED_TYPES = new Set(['restart_logger', 'show_message', 'restart_servic
 
 exports.createCommand = async (req, res) => {
     try {
-        const { deviceId } = req.params;
-        const { type, payload } = req.body || {};
+        const { type, payload, deviceId } = req.body || {};
 
         if (!deviceId) return res.status(400).json({ ok: false, error: 'deviceId is required' });
         if (!type || !ALLOWED_TYPES.has(type)) {
@@ -59,6 +58,10 @@ exports.completeCommand = async (req, res) => {
 // For device agents polling
 exports.getPendingCommand = async (deviceId) => {
     if (!deviceId) return null;
+
+    const device = await Device.findOne({ deviceId }).lean();
+    if (!device) return null;
+
     const cmd = await Command.findOneAndUpdate(
         { deviceId, status: 'pending' },
         { status: 'acknowledged', acknowledgedAt: new Date() },

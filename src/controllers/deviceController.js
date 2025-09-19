@@ -21,7 +21,10 @@ exports.assignDevice = async (req, res) => {
     const { deviceId } = req.params;
     const { username, userId, profileURL, name, designation, checkInTime } = req.body;
 
-    const device = await Device.findOneAndUpdate(
+    const device = await Device.findOne({ deviceId });
+    if (!device) return res.status(404).json({ error: 'Device not found' });
+
+    const deviceN = await Device.findOneAndUpdate(
       { deviceId },
       {
         $set: {
@@ -36,7 +39,7 @@ exports.assignDevice = async (req, res) => {
       { new: true, upsert: true }
     );
 
-    res.json({ data: device });
+    res.json({ data: deviceN });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
