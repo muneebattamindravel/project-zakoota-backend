@@ -20,7 +20,7 @@ exports.createCommand = async (req, res) => {
 
     const duplicate = await Command.exists({ deviceId, type, status: { $in: ['pending'] } });
     if (duplicate) {
-      return res.status(409).json({ ok: false, error: 'A similar command is already pending/acknowledged' });
+      return res.status(409).json({ ok: false, error: 'A similar command is already pending' });
     }
 
     const command = new Command({
