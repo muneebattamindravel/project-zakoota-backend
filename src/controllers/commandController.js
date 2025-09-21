@@ -36,24 +36,6 @@ exports.createCommand = async (req, res) => {
   }
 };
 
-// Mark a command as completed
-exports.completeCommand = async (req, res) => {
-  try {
-    const { commandId } = req.params;
-    if (!commandId) return res.status(400).json({ ok: false, error: 'commandId is required' });
-
-    const command = await Command.findOneAndUpdate(
-      { _id: commandId },
-      { status: 'completed', completedAt: new Date() },
-      { new: true }
-    );
-
-    if (!command) return res.status(404).json({ ok: false, error: 'Command not found' });
-    res.json({ ok: true, data: command });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
-};
 
 // ✅ Return pending commands WITHOUT acknowledging (for heartbeat)
 exports.getPendingCommands = async (req, res) => {
@@ -84,7 +66,7 @@ exports.acknowledgeCommand = async (req, res) => {
     if (!commandId) return res.status(400).json({ ok: false, error: 'commandId is required' });
 
     const command = await Command.findOneAndUpdate(
-      { commandId, status: 'pending' },
+      { _id: commandId, status: 'pending' },
       { status: 'acknowledged', acknowledgedAt: new Date() },
       { new: true }
     );
