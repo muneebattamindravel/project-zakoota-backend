@@ -25,7 +25,6 @@ exports.createCommand = async (req, res) => {
 
     const command = new Command({
       deviceId,
-      commandId: uuidv4(),
       type,
       payload: payload || {}
     });
@@ -44,7 +43,7 @@ exports.completeCommand = async (req, res) => {
     if (!commandId) return res.status(400).json({ ok: false, error: 'commandId is required' });
 
     const command = await Command.findOneAndUpdate(
-      { commandId },
+      { _id: commandId },
       { status: 'completed', completedAt: new Date() },
       { new: true }
     );

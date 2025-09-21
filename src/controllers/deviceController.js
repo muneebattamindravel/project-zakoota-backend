@@ -76,7 +76,7 @@ exports.heartbeat = async (req, res) => {
       // 🔹 Only fetch pending commands for service heartbeat
       const pending = await Command.find({ deviceId, status: "pending" }).sort({ createdAt: 1 });
       commands = pending.map(cmd => ({
-        id: cmd.commandId,
+        id: cmd._id,
         type: cmd.type,
         payload: cmd.payload,
       }));
