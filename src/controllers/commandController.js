@@ -18,7 +18,7 @@ exports.createCommand = async (req, res) => {
     const device = await Device.findOne({ deviceId }).lean();
     if (!device) return res.status(404).json({ ok: false, error: 'Device not found' });
 
-    const duplicate = await Command.exists({ deviceId, type, status: { $in: ['pending', 'acknowledged'] } });
+    const duplicate = await Command.exists({ deviceId, type, status: { $in: ['pending'] } });
     if (duplicate) {
       return res.status(409).json({ ok: false, error: 'A similar command is already pending/acknowledged' });
     }
