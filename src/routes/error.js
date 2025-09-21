@@ -4,7 +4,7 @@ const deviceErrorController = require('../controllers/deviceErrorController');
 
 router.post('/log', deviceErrorController.logError);
 router.get('/list', deviceErrorController.listErrors);
-router.get('/delete-all', deviceErrorController.deleteAllErrors);
+router.post('/delete-all', deviceErrorController.deleteAllErrors);
 
 
 module.exports = router;
