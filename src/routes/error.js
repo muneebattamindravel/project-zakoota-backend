@@ -3,7 +3,7 @@ const router = express.Router();
 const deviceErrorController = require('../controllers/deviceErrorController');
 
 router.post('/log', deviceErrorController.logError);
-router.get('/lost', deviceErrorController.listErrors);
+router.get('/list', deviceErrorController.listErrors);
 
 
 module.exports = router;
