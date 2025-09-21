@@ -2,7 +2,7 @@ const DeviceError = require('../models/deviceError');
 
 exports.logError = async (req, res) => {
     try {
-        const { deviceId } = req.params;
+        const { deviceId } = req.body;
         const { errorType, message, stack, context } = req.body || {};
 
         if (!deviceId) return res.status(400).json({ ok: false, error: 'deviceId is required' });
