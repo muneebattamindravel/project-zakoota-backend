@@ -81,7 +81,7 @@ exports.getPendingCommands = async (req, res) => {
 // ✅ Explicitly acknowledge a command
 exports.acknowledgeCommand = async (req, res) => {
   try {
-    const { commandId } = req.params;
+    const { commandId } = req.body;
     if (!commandId) return res.status(400).json({ ok: false, error: 'commandId is required' });
 
     const command = await Command.findOneAndUpdate(
