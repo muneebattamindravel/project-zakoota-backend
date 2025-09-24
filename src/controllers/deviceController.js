@@ -64,23 +64,20 @@ exports.heartbeat = async (req, res) => {
     if (type === "client") update.lastClientHeartbeat = now;
     if (type === "service") update.lastServiceHeartbeat = now;
 
-    // 🔹 Update device heartbeat
     const device = await Device.findOneAndUpdate(
       { deviceId },
       { $set: update },
       { new: true, upsert: true }
     );
 
-    let commands = [];
-    if (type === "service") {
-      // 🔹 Only fetch pending commands for service heartbeat
-      const pending = await Command.find({ deviceId, status: "pending" }).sort({ createdAt: 1 });
-      commands = pending.map(cmd => ({
-        id: cmd._id,
-        type: cmd.type,
-        payload: cmd.payload,
-      }));
-    }
+    // ✅ Fetch only commands for that type
+    const pending = await Command.find({ deviceId, target: type, status: "pending" }).sort({ createdAt: 1 });
+    const commands = pending.map(cmd => ({
+      id: cmd._id,
+      target: cmd.target,
+      type: cmd.type,
+      payload: cmd.payload,
+    }));
 
     res.json({
       ok: true,
@@ -94,3 +91,4 @@ exports.heartbeat = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+

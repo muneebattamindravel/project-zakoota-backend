@@ -3,30 +3,50 @@ const { v4: uuidv4 } = require('uuid');
 const Command = require('../models/command');
 const Device = require('../models/device');
 
-const ALLOWED_TYPES = new Set(['restart_logger', 'show_message', 'restart_service']);
+const ALLOWED_CLIENT = new Set([
+  'show-popup',
+  'focus-hours-start',
+  'focus-hours-end',
+  'hide',
+  'refresh',
+  'lock',
+  'requires-update',
+]);
+
+const ALLOWED_SERVICE = new Set([
+  'restart-service',
+  'restart-client',
+]);
 
 // Create a new command
 exports.createCommand = async (req, res) => {
   try {
-    const { type, payload, deviceId } = req.body || {};
+    const { target, type, payload, deviceId } = req.body || {};
 
     if (!deviceId) return res.status(400).json({ ok: false, error: 'deviceId is required' });
-    if (!type || !ALLOWED_TYPES.has(type)) {
-      return res.status(400).json({ ok: false, error: 'Invalid or missing command type' });
+    if (!target || !['client', 'service'].includes(target)) {
+      return res.status(400).json({ ok: false, error: 'Invalid or missing target' });
+    }
+
+    // Validate type based on target
+    const allowed = target === 'client' ? ALLOWED_CLIENT : ALLOWED_SERVICE;
+    if (!type || !allowed.has(type)) {
+      return res.status(400).json({ ok: false, error: 'Invalid or missing command type for target' });
     }
 
     const device = await Device.findOne({ deviceId }).lean();
     if (!device) return res.status(404).json({ ok: false, error: 'Device not found' });
 
-    const duplicate = await Command.exists({ deviceId, type, status: { $in: ['pending'] } });
+    const duplicate = await Command.exists({ deviceId, target, type, status: 'pending' });
     if (duplicate) {
       return res.status(409).json({ ok: false, error: 'A similar command is already pending' });
     }
 
     const command = new Command({
       deviceId,
+      target,
       type,
-      payload: payload || {}
+      payload: payload || {},
     });
 
     await command.save();
