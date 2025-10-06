@@ -1,22 +1,22 @@
 const Device = require("../models/device");
-const Command = require('../models/command');
+const Config = require("../models/config"); // ✅ Added import
 const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
   try {
-    // Get current config (contains heartbeat delays)
+    // ✅ Fetch the current configuration
     const config = await Config.findOne({}).lean();
-    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000;
-    const serviceDelayMs = config?.serviceHeartbeatDelay ?? 60000;
+    const clientDelayMs = (config?.clientHeartbeatDelay ?? 60000);
+    const serviceDelayMs = (config?.serviceHeartbeatDelay ?? 60000);
 
     const now = Date.now();
     const devices = await Device.find({}).lean();
 
     const enriched = devices.map((d) => {
-      
       const lastClient = d.lastClientHeartbeat;
       const lastService = d.lastServiceHeartbeat;
 
+      // ✅ Determine the most recent timestamp for lastSeen
       const lastSeen =
         lastClient && lastService
           ? new Date(
@@ -27,21 +27,21 @@ exports.list = async (_req, res) => {
             )
           : lastClient || lastService || d.lastSeen || d.updatedAt;
 
-      // Compute client status
+      // ✅ Compute Client Status
       let clientStatus = "offline";
       if (lastClient) {
         const diff = now - new Date(lastClient).getTime();
         if (diff <= clientDelayMs * 1.5) clientStatus = "online";
       }
 
-      // Compute service status
+      // ✅ Compute Service Status
       let serviceStatus = "offline";
       if (lastService) {
         const diff = now - new Date(lastService).getTime();
         if (diff <= serviceDelayMs * 1.5) serviceStatus = "online";
       }
 
-      // Combine into overall device status
+      // ✅ Overall device status
       const status =
         clientStatus === "online" || serviceStatus === "online"
           ? "online"
@@ -62,6 +62,7 @@ exports.list = async (_req, res) => {
     return Respond.fail(res, err.message || "Failed to list devices");
   }
 };
+
 
 exports.assignDevice = async (req, res) => {
   try {
