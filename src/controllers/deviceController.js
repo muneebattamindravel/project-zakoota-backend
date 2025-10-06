@@ -5,65 +5,15 @@ const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
   try {
-    // ✅ Fetch the current configuration
-    const config = await Config.findOne({}).lean();
-    const clientDelayMs = (config?.clientHeartbeatDelay ?? 60000);
-    const serviceDelayMs = (config?.serviceHeartbeatDelay ?? 60000);
-
-    const now = Date.now();
+    // Simply return the raw device documents
     const devices = await Device.find({}).lean();
 
-    const enriched = devices.map((d) => {
-      const lastClient = d.lastClientHeartbeat;
-      const lastService = d.lastServiceHeartbeat;
-
-      // ✅ Determine the most recent timestamp for lastSeen
-      const lastSeen =
-        lastClient && lastService
-          ? new Date(
-              Math.max(
-                new Date(lastClient).getTime(),
-                new Date(lastService).getTime()
-              )
-            )
-          : lastClient || lastService || d.lastSeen || d.updatedAt;
-
-      // ✅ Compute Client Status
-      let clientStatus = "offline";
-      if (lastClient) {
-        const diff = now - new Date(lastClient).getTime();
-        if (diff <= clientDelayMs * 1.5) clientStatus = "online";
-      }
-
-      // ✅ Compute Service Status
-      let serviceStatus = "offline";
-      if (lastService) {
-        const diff = now - new Date(lastService).getTime();
-        if (diff <= serviceDelayMs * 1.5) serviceStatus = "online";
-      }
-
-      // ✅ Overall device status
-      const status =
-        clientStatus === "online" || serviceStatus === "online"
-          ? "online"
-          : "offline";
-
-      return {
-        ...d,
-        clientStatus,
-        serviceStatus,
-        status,
-        lastSeen,
-      };
-    });
-
-    return Respond.ok(res, { devices: enriched }, "Devices listed");
+    return Respond.ok(res, { devices }, "Devices listed");
   } catch (err) {
     console.error("Device list error:", err);
     return Respond.fail(res, err.message || "Failed to list devices");
   }
 };
-
 
 exports.assignDevice = async (req, res) => {
   try {
