@@ -1,5 +1,6 @@
 const Device = require("../models/device");
-const Config = require("../models/config"); // ✅ Added import
+const Config = require("../models/config");
+const Command = require("../models/command");
 const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
