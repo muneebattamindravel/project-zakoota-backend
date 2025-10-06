@@ -13,8 +13,10 @@ exports.list = async (_req, res) => {
     const devices = await Device.find({}).lean();
 
     const enriched = devices.map((d) => {
+      
       const lastClient = d.lastClientHeartbeat;
       const lastService = d.lastServiceHeartbeat;
+
       const lastSeen =
         lastClient && lastService
           ? new Date(
