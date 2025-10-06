@@ -3,17 +3,62 @@ const Command = require('../models/command');
 const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
-  const devices = await Device.find({}).lean();
-  const now = Date.now();
-  const enriched = devices.map(d => {
-    let status = d.status || 'unknown';
-    if (d.lastSeen) {
-      const diff = now - new Date(d.lastSeen).getTime();
-      status = diff < 2 * 60 * 1000 ? 'online' : diff < 10 * 60 * 1000 ? 'idle' : 'offline';
-    }
-    return { ...d, status };
-  });
-  return Respond.ok(res, { devices: enriched }, 'Devices listed');
+  try {
+    // Get current config (contains heartbeat delays)
+    const config = await Config.findOne({}).lean();
+    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000;
+    const serviceDelayMs = config?.serviceHeartbeatDelay ?? 60000;
+
+    const now = Date.now();
+    const devices = await Device.find({}).lean();
+
+    const enriched = devices.map((d) => {
+      const lastClient = d.lastClientHeartbeat;
+      const lastService = d.lastServiceHeartbeat;
+      const lastSeen =
+        lastClient && lastService
+          ? new Date(
+              Math.max(
+                new Date(lastClient).getTime(),
+                new Date(lastService).getTime()
+              )
+            )
+          : lastClient || lastService || d.lastSeen || d.updatedAt;
+
+      // Compute client status
+      let clientStatus = "offline";
+      if (lastClient) {
+        const diff = now - new Date(lastClient).getTime();
+        if (diff <= clientDelayMs * 1.5) clientStatus = "online";
+      }
+
+      // Compute service status
+      let serviceStatus = "offline";
+      if (lastService) {
+        const diff = now - new Date(lastService).getTime();
+        if (diff <= serviceDelayMs * 1.5) serviceStatus = "online";
+      }
+
+      // Combine into overall device status
+      const status =
+        clientStatus === "online" || serviceStatus === "online"
+          ? "online"
+          : "offline";
+
+      return {
+        ...d,
+        clientStatus,
+        serviceStatus,
+        status,
+        lastSeen,
+      };
+    });
+
+    return Respond.ok(res, { devices: enriched }, "Devices listed");
+  } catch (err) {
+    console.error("Device list error:", err);
+    return Respond.fail(res, err.message || "Failed to list devices");
+  }
 };
 
 exports.assignDevice = async (req, res) => {
