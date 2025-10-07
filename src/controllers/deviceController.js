@@ -3,10 +3,6 @@ const Config = require("../models/config");
 const Command = require("../models/command");
 const Respond = require("../utils/respond");
 
-const Device = require("../models/device");
-const Config = require("../models/config");
-const Respond = require("../utils/respond");
-
 exports.list = async (_req, res) => {
   try {
     const config = await Config.findOne({}).lean();
