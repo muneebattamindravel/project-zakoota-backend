@@ -61,6 +61,6 @@ exports.deleteAllErrors = async (req, res) => {
     await DeviceError.deleteMany({});
     res.json({ ok: true, message: 'All errors deleted' });
   } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: err.message });;
   }
 };
