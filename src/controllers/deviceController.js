@@ -3,15 +3,18 @@ const Config = require("../models/config");
 const Command = require("../models/command");
 const Respond = require("../utils/respond");
 
+const Device = require("../models/device");
+const Config = require("../models/config");
+const Respond = require("../utils/respond");
+
 exports.list = async (_req, res) => {
   try {
     const config = await Config.findOne({}).lean();
     const clientDelayMs = config?.clientHeartbeatDelay ?? 60000;
     const serviceDelayMs = config?.serviceHeartbeatDelay ?? 60000;
-
     const GRACE_MULTIPLIER = 1.5;
-    const now = Date.now();
 
+    const now = Date.now();
     const devices = await Device.find({}).lean();
 
     const enriched = devices.map((d) => {
@@ -22,13 +25,19 @@ exports.list = async (_req, res) => {
         ? new Date(d.lastServiceHeartbeat).getTime()
         : 0;
 
-      const clientAlive =
-        lastClientTime > 0 &&
-        now - lastClientTime < clientDelayMs * GRACE_MULTIPLIER;
+      const clientThreshold = clientDelayMs * GRACE_MULTIPLIER;
+      const serviceThreshold = serviceDelayMs * GRACE_MULTIPLIER;
 
-      const serviceAlive =
-        lastServiceTime > 0 &&
-        now - lastServiceTime < serviceDelayMs * GRACE_MULTIPLIER;
+      const clientDiff = now - lastClientTime;
+      const serviceDiff = now - lastServiceTime;
+
+      const clientAlive = lastClientTime && clientDiff < clientThreshold;
+      const serviceAlive = lastServiceTime && serviceDiff < serviceThreshold;
+
+      // For debugging:
+      console.log(
+        `[${d.deviceId}] clientDiff=${clientDiff}ms (thr=${clientThreshold}) → ${clientAlive ? "ONLINE" : "OFFLINE"}`
+      );
 
       const lastSeen =
         lastClientTime || lastServiceTime
@@ -54,6 +63,7 @@ exports.list = async (_req, res) => {
     );
   }
 };
+
 
 exports.assignDevice = async (req, res) => {
   try {
