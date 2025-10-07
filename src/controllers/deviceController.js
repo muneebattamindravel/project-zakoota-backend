@@ -6,10 +6,12 @@ const Respond = require("../utils/respond");
 exports.list = async (_req, res) => {
   try {
     const config = await Config.findOne({}).lean();
-    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000; // 1 min default
+    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000;
     const serviceDelayMs = config?.serviceHeartbeatDelay ?? 60000;
 
+    const GRACE_MULTIPLIER = 1.5;
     const now = Date.now();
+
     const devices = await Device.find({}).lean();
 
     const enriched = devices.map((d) => {
@@ -21,9 +23,12 @@ exports.list = async (_req, res) => {
         : 0;
 
       const clientAlive =
-        lastClientTime > 0 && now - lastClientTime < (clientDelayMs + 10000);
+        lastClientTime > 0 &&
+        now - lastClientTime < clientDelayMs * GRACE_MULTIPLIER;
+
       const serviceAlive =
-        lastServiceTime > 0 && now - lastServiceTime < (serviceDelayMs + 10000);
+        lastServiceTime > 0 &&
+        now - lastServiceTime < serviceDelayMs * GRACE_MULTIPLIER;
 
       const lastSeen =
         lastClientTime || lastServiceTime
