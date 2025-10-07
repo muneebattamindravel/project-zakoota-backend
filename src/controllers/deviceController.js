@@ -5,13 +5,51 @@ const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
   try {
-    // Simply return the raw device documents
+    // ✅ Load current heartbeat delay config (fallback to 60s)
+    const config = await Config.findOne({}).lean();
+    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000;
+    const serviceDelayMs = config?.serviceHeartbeatDelay ?? 60000;
+
+    const now = Date.now();
     const devices = await Device.find({}).lean();
 
-    return Respond.ok(res, { devices }, "Devices listed");
+    const enriched = devices.map((d) => {
+      const lastClient = d.lastClientHeartbeat
+        ? new Date(d.lastClientHeartbeat).getTime()
+        : null;
+      const lastService = d.lastServiceHeartbeat
+        ? new Date(d.lastServiceHeartbeat).getTime()
+        : null;
+
+      // ✅ Calculate online/offline
+      const clientAlive =
+        lastClient && now - lastClient <= clientDelayMs;
+      const serviceAlive =
+        lastService && now - lastService <= serviceDelayMs;
+
+      // ✅ Most recent heartbeat = lastSeen
+      const lastSeen =
+        lastClient || lastService
+          ? new Date(Math.max(lastClient || 0, lastService || 0))
+          : null;
+
+      return {
+        ...d,
+        clientStatus: clientAlive ? "online" : "offline",
+        serviceStatus: serviceAlive ? "online" : "offline",
+        lastSeen,
+      };
+    });
+
+    return Respond.ok(res, enriched, "Devices fetched successfully");
   } catch (err) {
-    console.error("Device list error:", err);
-    return Respond.fail(res, err.message || "Failed to list devices");
+    console.error("Error listing devices:", err);
+    return Respond.error(
+      res,
+      "server_error",
+      "Failed to list devices",
+      err.message
+    );
   }
 };
 
