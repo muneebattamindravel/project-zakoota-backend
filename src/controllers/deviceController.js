@@ -5,9 +5,14 @@ const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
   try {
+    // ✅ Load config (values are stored in seconds)
     const config = await Config.findOne({}).lean();
-    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000;
-    const serviceDelayMs = config?.serviceHeartbeatDelay ?? 60000;
+
+    // Convert seconds → milliseconds
+    const clientDelayMs = (config?.clientHeartbeatDelay ?? 60) * 1000;
+    const serviceDelayMs = (config?.serviceHeartbeatDelay ?? 120) * 1000;
+
+    // ✅ Add a 50% cushion (grace period)
     const GRACE_MULTIPLIER = 1.5;
 
     const now = Date.now();
@@ -21,24 +26,29 @@ exports.list = async (_req, res) => {
         ? new Date(d.lastServiceHeartbeat).getTime()
         : 0;
 
+      // Compute thresholds with grace buffer
       const clientThreshold = clientDelayMs * GRACE_MULTIPLIER;
       const serviceThreshold = serviceDelayMs * GRACE_MULTIPLIER;
 
+      // Time since last heartbeat
       const clientDiff = now - lastClientTime;
       const serviceDiff = now - lastServiceTime;
 
+      // Determine online/offline
       const clientAlive = lastClientTime && clientDiff < clientThreshold;
       const serviceAlive = lastServiceTime && serviceDiff < serviceThreshold;
 
-      // For debugging:
-      console.log(
-        `[${d.deviceId}] clientDiff=${clientDiff}ms (thr=${clientThreshold}) → ${clientAlive ? "ONLINE" : "OFFLINE"}`
-      );
-
+      // Compute latest heartbeat time
       const lastSeen =
         lastClientTime || lastServiceTime
           ? new Date(Math.max(lastClientTime, lastServiceTime))
           : null;
+
+      // Debug log (optional)
+      console.log(
+        `[${d.deviceId}] clientDiff=${clientDiff}ms (thr=${clientThreshold}ms) → ${clientAlive ? "ONLINE" : "OFFLINE"
+        }`
+      );
 
       return {
         ...d,
@@ -59,7 +69,6 @@ exports.list = async (_req, res) => {
     );
   }
 };
-
 
 exports.assignDevice = async (req, res) => {
   try {
