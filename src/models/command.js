@@ -27,7 +27,9 @@ const commandSchema = new mongoose.Schema(
         "restart-service",
         "restart-client",
         // client commands
-        "show-popup",
+        "show-popup-announcement",
+        "show-popup-message",
+        "show-popup-celebration",
         "focus-hours-start",
         "focus-hours-end",
         "hide",
