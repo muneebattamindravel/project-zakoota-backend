@@ -5,13 +5,68 @@ const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
   try {
-    // Simply return the raw device documents
+    // ✅ Load config (values are stored in seconds)
+    const config = await Config.findOne({}).lean();
+
+    // Convert seconds → milliseconds
+    const clientDelayMs = (config?.clientHeartbeatDelay ?? 60) * 1000;
+    const serviceDelayMs = (config?.serviceHeartbeatDelay ?? 120) * 1000;
+
+    // ✅ Add a 50% cushion (grace period)
+    const GRACE_MULTIPLIER = 1.5;
+
+    const now = Date.now();
     const devices = await Device.find({}).lean();
 
-    return Respond.ok(res, { devices }, "Devices listed");
+    const enriched = devices.map((d) => {
+      const lastClientTime = d.lastClientHeartbeat
+        ? new Date(d.lastClientHeartbeat).getTime()
+        : 0;
+      const lastServiceTime = d.lastServiceHeartbeat
+        ? new Date(d.lastServiceHeartbeat).getTime()
+        : 0;
+
+      // Compute thresholds with grace buffer
+      const clientThreshold = clientDelayMs * GRACE_MULTIPLIER;
+      const serviceThreshold = serviceDelayMs * GRACE_MULTIPLIER;
+
+      // Time since last heartbeat
+      const clientDiff = now - lastClientTime;
+      const serviceDiff = now - lastServiceTime;
+
+      // Determine online/offline
+      const clientAlive = lastClientTime && clientDiff < clientThreshold;
+      const serviceAlive = lastServiceTime && serviceDiff < serviceThreshold;
+
+      // Compute latest heartbeat time
+      const lastSeen =
+        lastClientTime || lastServiceTime
+          ? new Date(Math.max(lastClientTime, lastServiceTime))
+          : null;
+
+      // Debug log (optional)
+      console.log(
+        `[${d.deviceId}] clientDiff=${clientDiff}ms (thr=${clientThreshold}ms) → ${clientAlive ? "ONLINE" : "OFFLINE"
+        }`
+      );
+
+      return {
+        ...d,
+        clientStatus: clientAlive ? "online" : "offline",
+        serviceStatus: serviceAlive ? "online" : "offline",
+        lastSeen,
+      };
+    });
+
+    return Respond.ok(res, enriched, "Devices fetched successfully");
   } catch (err) {
-    console.error("Device list error:", err);
-    return Respond.fail(res, err.message || "Failed to list devices");
+    console.error("Error listing devices:", err);
+    return Respond.error(
+      res,
+      "server_error",
+      "Failed to list devices",
+      err.message
+    );
   }
 };
 
