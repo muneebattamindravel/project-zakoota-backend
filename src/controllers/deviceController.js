@@ -5,32 +5,29 @@ const Respond = require("../utils/respond");
 
 exports.list = async (_req, res) => {
   try {
-    // ✅ Load current heartbeat delay config (fallback to 60s)
     const config = await Config.findOne({}).lean();
-    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000;
+    const clientDelayMs = config?.clientHeartbeatDelay ?? 60000; // 1 min default
     const serviceDelayMs = config?.serviceHeartbeatDelay ?? 60000;
 
     const now = Date.now();
     const devices = await Device.find({}).lean();
 
     const enriched = devices.map((d) => {
-      const lastClient = d.lastClientHeartbeat
+      const lastClientTime = d.lastClientHeartbeat
         ? new Date(d.lastClientHeartbeat).getTime()
-        : null;
-      const lastService = d.lastServiceHeartbeat
+        : 0;
+      const lastServiceTime = d.lastServiceHeartbeat
         ? new Date(d.lastServiceHeartbeat).getTime()
-        : null;
+        : 0;
 
-      // ✅ Calculate online/offline
       const clientAlive =
-        lastClient && now - lastClient <= clientDelayMs;
+        lastClientTime > 0 && now - lastClientTime < (clientDelayMs + 10000);
       const serviceAlive =
-        lastService && now - lastService <= serviceDelayMs;
+        lastServiceTime > 0 && now - lastServiceTime < (serviceDelayMs + 10000);
 
-      // ✅ Most recent heartbeat = lastSeen
       const lastSeen =
-        lastClient || lastService
-          ? new Date(Math.max(lastClient || 0, lastService || 0))
+        lastClientTime || lastServiceTime
+          ? new Date(Math.max(lastClientTime, lastServiceTime))
           : null;
 
       return {
