@@ -4,7 +4,9 @@ const Command = require('../models/command');
 const Device = require('../models/device');
 
 const ALLOWED_CLIENT = new Set([
-  'show-popup',
+  'show-popup-announcement',
+  'show-popup-message',
+  'show-popup-celebration',
   'focus-hours-start',
   'focus-hours-end',
   'hide',
