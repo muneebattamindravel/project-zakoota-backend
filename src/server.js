@@ -26,6 +26,7 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: '*' })); // if you want per-domain, configure above
 app.use(express.json({ limit: '2mb' }));
+
 app.use(require("./middlewares/decryptMiddleware"));
 
 app.use(morgan('combined'));

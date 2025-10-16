@@ -6,5 +6,4 @@ router.post('/log', deviceErrorController.logError);
 router.get('/list', deviceErrorController.listErrors);
 router.delete('/delete-all', deviceErrorController.deleteAllErrors);
 
-
 module.exports = router;

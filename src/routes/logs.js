@@ -4,7 +4,7 @@ const logController = require("../controllers/logController");
 
 const router = express.Router();
 
-router.post("/ingest1", asyncHandler(logController.ingest));
+router.post("/ingest", asyncHandler(logController.ingest));
 router.get("/", asyncHandler(logController.list));
 router.get("/aggregate/summary", asyncHandler(logController.summary));
 router.get("/aggregate/apps", asyncHandler(logController.apps));
