@@ -3,6 +3,9 @@ const crypto = require("crypto");
 
 // Derive or parse a 32-byte AES key from the env secret
 function makeAesKeyFromSecret(secret) {
+
+  console.log("********************************* SECRET = " + secret)
+
   function isProbablyBase64(s) {
     return typeof s === "string" && /^[A-Za-z0-9+/=]+$/.test(s) && s.length % 4 === 0;
   }
@@ -18,7 +21,7 @@ function makeAesKeyFromSecret(secret) {
       if (/^[0-9a-fA-F]+$/.test(secret) && secret.length === 64) {
         return Buffer.from(secret, "hex");
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // default deterministic scrypt-derived key
