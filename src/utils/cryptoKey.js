@@ -28,7 +28,7 @@ function makeAesKeyFromSecret(secret) {
   return crypto.scryptSync(String(secret || ""), "zakoota-static-salt", 32);
 }
 
-const SECRET = process.env.ZAKOOTA_SECRET;
+const SECRET = process.env.ZAKOOTA_SECRET;;; // done editing here
 const AES_KEY = makeAesKeyFromSecret(SECRET);
 
 module.exports = AES_KEY;
