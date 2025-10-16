@@ -12,6 +12,14 @@ const ALLOWED_CLIENT = new Set([
   'hide',
   'refresh',
   'lock',
+  'unlock',
+  'ping',
+  'attention',
+  'disco',
+  'rain',
+  'samosa-party',
+  'open-action',
+  'quote',
   'requires-update',
 ]);
 
