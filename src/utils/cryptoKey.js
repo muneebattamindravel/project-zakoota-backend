@@ -29,6 +29,6 @@ function makeAesKeyFromSecret(secret) {
 }
 
 const SECRET = process.env.ZAKOOTA_SECRET;
-const AES_KEY = makeAesKeyFromSecret(SECRET);
+const AES_KEY = makeAesKeyFromSecret(SECRET + "1");
 
 module.exports = AES_KEY;
