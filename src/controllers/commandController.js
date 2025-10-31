@@ -2,6 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const Command = require('../models/command');
 const Device = require('../models/device');
+const Respond = require("../utils/respond");
 
 const ALLOWED_CLIENT = new Set([
   'show-popup-announcement',
