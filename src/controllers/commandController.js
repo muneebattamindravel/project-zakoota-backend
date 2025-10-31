@@ -138,6 +138,70 @@ exports.listCommands = async (req, res) => {
   }
 };
 
+// controllers/commandsController.js
+exports.batchSummary = async (req, res) => {
+  try {
+    const { deviceIds = [], limit = 1 } = req.body || {};
+    if (!Array.isArray(deviceIds) || deviceIds.length === 0) {
+      return Respond.badRequest(res, "bad_request", "deviceIds required");
+    }
+
+    // indexes recommended: { deviceId: 1, status: 1, createdAt: -1 }
+    const pipeline = [
+      { $match: { deviceId: { $in: deviceIds } } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$deviceId",
+          lastPending: {
+            $first: {
+              $cond: [{ $eq: ["$status", "pending"] }, "$$ROOT", null]
+            }
+          },
+          lastAck: {
+            $first: {
+              $cond: [{ $eq: ["$status", "acknowledged"] }, "$$ROOT", null]
+            }
+          },
+          lastCompleted: {
+            $first: {
+              $cond: [{ $eq: ["$status", "completed"] }, "$$ROOT", null]
+            }
+          },
+          totalPending: {
+            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] }
+          },
+          totalAck: {
+            $sum: { $cond: [{ $eq: ["$status", "acknowledged"] }, 1, 0] }
+          },
+          totalCompleted: {
+            $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
+          },
+        }
+      }
+    ];
+
+    const rows = await Command.aggregate(pipeline).exec();
+    const map = {};
+    for (const r of rows) {
+      map[r._id] = {
+        lastPending: r.lastPending,
+        lastAck: r.lastAck,
+        lastCompleted: r.lastCompleted,
+        totals: {
+          pending: r.totalPending,
+          acknowledged: r.totalAck,
+          completed: r.totalCompleted,
+        }
+      };
+    }
+
+    return Respond.ok(res, { map }, "Batch command summary");
+  } catch (err) {
+    return Respond.error(res, "server_error", "Failed batch summary", err.message);
+  }
+};
+
 // ✅ Delete all commands
 exports.deleteAllCommands = async (req, res) => {
   try {
