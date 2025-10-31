@@ -17,6 +17,6 @@ router.get('/list', commandController.listCommands);
 // ✅ New: delete all commands
 router.delete('/deleteAll', commandController.deleteAllCommands);
 
-router.post('/summary', commandsController.batchSummary);
+router.post('/summary', commandController.batchSummary);
 
 module.exports = router;
