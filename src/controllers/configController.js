@@ -47,7 +47,7 @@ exports.getUserConfig = async (req, res) => {
 
 exports.updateConfig = async (req, res) => {
   try {
-    const { chunkTime, idleThresholdPerChunk, isZaiminaarEnabled, clientHeartbeatDelay, serviceHeartbeatDelay } = req.body;
+    const { chunkTime, idleThresholdPerChunk, isZaiminaarEnabled, clientHeartbeatDelay, serviceHeartbeatDelay, allowQuit } = req.body;
 
     let config = await Config.findOne();
     if (!config) {
@@ -57,6 +57,7 @@ exports.updateConfig = async (req, res) => {
         isZaiminaarEnabled,
         clientHeartbeatDelay,
         serviceHeartbeatDelay,
+        allowQuit,
         version: 1, // first version
       });
     } else {
