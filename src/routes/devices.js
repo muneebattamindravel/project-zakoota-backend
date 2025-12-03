@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.get("/", asyncHandler(deviceController.list));
 
-router.get('/devices/list-optimized', deviceController.listOptimized);
+router.get('/list-optimized', deviceController.listOptimized);
 
 router.patch("/:deviceId", asyncHandler(deviceController.assignDevice));
 router.delete("/", deviceController.deleteAllDevices);
