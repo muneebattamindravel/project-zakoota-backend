@@ -1,80 +1,16 @@
+// controllers/deviceController.js
+const mongoose = require("mongoose");
 const Device = require("../models/device");
 const Config = require("../models/config");
 const Command = require("../models/command");
 const Respond = require("../utils/respond");
 
-// exports.list = async (_req, res) => {
-//   try {
-//     // ✅ Load config (values are stored in seconds)
-//     const config = await Config.findOne({}).lean();
+const ActivityChunk = require("../models/activityChunk"); // uses endAt + logTotals.*  ✅
 
-//     // Convert seconds → milliseconds
-//     const clientDelayMs = (config?.clientHeartbeatDelay ?? 60) * 1000;
-//     const serviceDelayMs = (config?.serviceHeartbeatDelay ?? 120) * 1000;
-
-//     // ✅ Add a 50% cushion (grace period)
-//     const GRACE_MULTIPLIER = 1.5;
-
-//     const now = Date.now();
-//     const devices = await Device.find({}).lean();
-
-//     const enriched = devices.map((d) => {
-//       const lastClientTime = d.lastClientHeartbeat
-//         ? new Date(d.lastClientHeartbeat).getTime()
-//         : 0;
-//       const lastServiceTime = d.lastServiceHeartbeat
-//         ? new Date(d.lastServiceHeartbeat).getTime()
-//         : 0;
-
-//       // Compute thresholds with grace buffer
-//       const clientThreshold = clientDelayMs * GRACE_MULTIPLIER;
-//       const serviceThreshold = serviceDelayMs * GRACE_MULTIPLIER;
-
-//       // Time since last heartbeat
-//       const clientDiff = now - lastClientTime;
-//       const serviceDiff = now - lastServiceTime;
-
-//       // Determine online/offline
-//       const clientAlive = lastClientTime && clientDiff < clientThreshold;
-//       const serviceAlive = lastServiceTime && serviceDiff < serviceThreshold;
-
-//       // Compute latest heartbeat time
-//       const lastSeen =
-//         lastClientTime || lastServiceTime
-//           ? new Date(Math.max(lastClientTime, lastServiceTime))
-//           : null;
-
-//       // Debug log (optional)
-//       console.log(
-//         `[${d.deviceId}] clientDiff=${clientDiff}ms (thr=${clientThreshold}ms) → ${clientAlive ? "ONLINE" : "OFFLINE"
-//         }`
-//       );
-
-//       return {
-//         ...d,
-//         clientStatus: clientAlive ? "online" : "offline",
-//         serviceStatus: serviceAlive ? "online" : "offline",
-//         lastSeen,
-//       };
-//     });
-
-//     return Respond.ok(res, enriched, "Devices fetched successfully");
-//   } catch (err) {
-//     console.error("Error listing devices:", err);
-//     return Respond.error(
-//       res,
-//       "server_error",
-//       "Failed to list devices",
-//       err.message
-//     );
-//   }
-// };
-
-/** ---------------------------
- * Presence helpers (online/offline)
- * Your config stores delays in SECONDS; we convert to ms.
- * GRACE_MULTIPLIER gives the cushion (default 1.5x = 30%+ buffer).
- * --------------------------- */
+// ---------------------------
+// Presence helpers
+// Config delays are in SECONDS -> convert to ms
+// ---------------------------
 function enrichPresence(dev, cfg, nowMs) {
   const clientDelayMs = ((cfg?.clientHeartbeatDelay ?? 60) * 1000);
   const serviceDelayMs = ((cfg?.serviceHeartbeatDelay ?? 120) * 1000);
@@ -97,10 +33,10 @@ function enrichPresence(dev, cfg, nowMs) {
   };
 }
 
-/** ---------------------------
- * Command summaries (batched)
- * Returns { [deviceId]: { lastPending?, lastAck?, totals? } }
- * --------------------------- */
+// ---------------------------
+// Command summaries (batched)
+// Returns { [deviceId]: { lastPending?, lastAck?, totals? } }
+// ---------------------------
 async function fetchCommandSummaries(deviceIds) {
   if (!deviceIds.length) return {};
 
@@ -125,12 +61,12 @@ async function fetchCommandSummaries(deviceIds) {
     },
   ]);
 
-  // Last ack (acknowledged or completed)
+  // Last acknowledged (or completed; your schema has pending/ack only)
   const lastAck = await Command.aggregate([
     {
       $match: {
         deviceId: { $in: deviceIds },
-        status: { $in: ["acknowledged", "completed"] },
+        status: { $in: ["acknowledged"] },
       },
     },
     { $sort: { acknowledgedAt: -1, createdAt: -1 } },
@@ -152,7 +88,7 @@ async function fetchCommandSummaries(deviceIds) {
     },
   ]);
 
-  // Totals per status
+  // Totals by status
   const totals = await Command.aggregate([
     { $match: { deviceId: { $in: deviceIds } } },
     {
@@ -182,21 +118,51 @@ async function fetchCommandSummaries(deviceIds) {
   return map;
 }
 
-/** ---------------------------
- * TODAY activity batch (optional)
- * If you already compute/store today's activity (activeSeconds/idleSeconds),
- * return { [deviceId]: { activeSeconds, idleSeconds } }.
- * Otherwise return {} and UI shows "no data".
- * --------------------------- */
-async function fetchActivityTodayBatch(_deviceIds) {
-  // Wire this to your analytics/chunks if available.
-  // Returning {} keeps things safe/compatible today.
-  return {};
+// ---------------------------
+// TODAY activity batch (WORKING)
+// Uses ActivityChunk with: deviceId, endAt, logTotals.activeTime, logTotals.idleTime
+// Sums today's chunks per device. If none, returns {} and UI shows "no data".
+// ---------------------------
+async function fetchActivityTodayBatch(deviceIds) {
+  if (!Array.isArray(deviceIds) || deviceIds.length === 0) return {};
+
+  // Use local server "today" window; if you prefer UTC, replace with UTC start/end.
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+
+  // Aggregate on endAt (indexed) for chunks that finished today.
+  // Sum logTotals.activeTime / logTotals.idleTime (seconds per your schema).
+  const rows = await ActivityChunk.aggregate([
+    {
+      $match: {
+        deviceId: { $in: deviceIds },
+        endAt: { $gte: startOfToday, $lt: startOfTomorrow },
+      },
+    },
+    {
+      $group: {
+        _id: "$deviceId",
+        activeSeconds: { $sum: { $ifNull: ["$logTotals.activeTime", 0] } },
+        idleSeconds:   { $sum: { $ifNull: ["$logTotals.idleTime", 0] } },
+      },
+    },
+  ]).allowDiskUse(true);
+
+  const out = {};
+  for (const r of rows) {
+    const active = Math.max(0, Math.floor(Number(r.activeSeconds || 0)));
+    const idle   = Math.max(0, Math.floor(Number(r.idleSeconds   || 0)));
+    if (active > 0 || idle > 0) {
+      out[r._id] = { activeSeconds: active, idleSeconds: idle };
+    }
+  }
+  return out;
 }
 
-/** ===========================
- * EXISTING list (kept intact)
- * =========================== */
+// ===========================
+// EXISTING list (kept intact)
+// ===========================
 exports.list = async (_req, res) => {
   try {
     const config = await Config.findOne({}).lean();
@@ -226,9 +192,9 @@ exports.list = async (_req, res) => {
   }
 };
 
-/** ===========================================
- * NEW: listOptimized (everything in one call)
- * =========================================== */
+// ===========================================
+// NEW: listOptimized (everything in one call)
+// ===========================================
 exports.listOptimized = async (_req, res) => {
   try {
     const now = Date.now();
@@ -263,11 +229,11 @@ exports.listOptimized = async (_req, res) => {
         commandsSummary: {
           lastPending: cmd.lastPending || null,
           lastAck: cmd.lastAck || null,
-          totals: cmd.totals || { pending: 0, acknowledged: 0, completed: 0 },
+          totals: cmd.totals || { pending: 0, acknowledged: 0 },
         },
 
         // activity
-        activityToday, // {activeSeconds, idleSeconds} | null
+        activityToday, // { activeSeconds, idleSeconds } | null
       };
     });
 
