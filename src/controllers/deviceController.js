@@ -7,6 +7,41 @@ const Respond = require("../utils/respond");
 
 const ActivityChunk = require("../models/activityChunk"); // uses endAt + logTotals.*  ✅
 
+// Timezone for "today" activity window (in minutes from UTC)
+// Asia/Karachi = +300. You can change via env if needed.
+const ACTIVITY_TZ_OFFSET_MINUTES = parseInt(
+  process.env.ACTIVITY_TZ_OFFSET_MINUTES || "300",
+  10
+);
+
+/**
+ * Compute "today" start/end in UTC, for a fixed offset timezone.
+ * Example: offsetMinutes = 300 -> UTC+05:00 (Pakistan local).
+ */
+function getTodayWindowForOffset(offsetMinutes) {
+  const offsetMs = offsetMinutes * 60 * 1000;
+
+  // Current time in UTC
+  const nowUtc = new Date();
+
+  // Convert to "activity timezone" by adding offset
+  const nowInTarget = new Date(nowUtc.getTime() + offsetMs);
+
+  const year = nowInTarget.getUTCFullYear();
+  const month = nowInTarget.getUTCMonth();
+  const day = nowInTarget.getUTCDate();
+
+  // Midnight in target TZ, mapped back to UTC
+  const startUtcMs = Date.UTC(year, month, day) - offsetMs;
+  const endUtcMs = Date.UTC(year, month, day + 1) - offsetMs;
+
+  return {
+    startOfToday: new Date(startUtcMs),
+    startOfTomorrow: new Date(endUtcMs),
+  };
+}
+
+
 // ---------------------------
 // Presence helpers
 // Config delays are in SECONDS -> convert to ms
@@ -118,21 +153,12 @@ async function fetchCommandSummaries(deviceIds) {
   return map;
 }
 
-// ---------------------------
-// TODAY activity batch (WORKING)
-// Uses ActivityChunk with: deviceId, endAt, logTotals.activeTime, logTotals.idleTime
-// Sums today's chunks per device. If none, returns {} and UI shows "no data".
-// ---------------------------
 async function fetchActivityTodayBatch(deviceIds) {
   if (!Array.isArray(deviceIds) || deviceIds.length === 0) return {};
 
-  // Use local server "today" window; if you prefer UTC, replace with UTC start/end.
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  const { startOfToday, startOfTomorrow } =
+    getTodayWindowForOffset(ACTIVITY_TZ_OFFSET_MINUTES);
 
-  // Aggregate on endAt (indexed) for chunks that finished today.
-  // Sum logTotals.activeTime / logTotals.idleTime (seconds per your schema).
   const rows = await ActivityChunk.aggregate([
     {
       $match: {
@@ -159,6 +185,7 @@ async function fetchActivityTodayBatch(deviceIds) {
   }
   return out;
 }
+
 
 // ===========================
 // EXISTING list (kept intact)
