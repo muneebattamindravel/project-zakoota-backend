@@ -156,9 +156,37 @@ async function fetchCommandSummaries(deviceIds) {
 async function fetchActivityTodayBatch(deviceIds) {
   if (!Array.isArray(deviceIds) || deviceIds.length === 0) return {};
 
-  const { startOfToday, startOfTomorrow } =
-    getTodayWindowForOffset(ACTIVITY_TZ_OFFSET_MINUTES);
+  // 🔹 Load config for chunk time + idle threshold (same as logController)
+  const cfg = await Config.findOne({}).lean();
+  const chunkTimeSec = cfg?.chunkTime || 300;              // default 5 min on server
+  const idleThresholdPerChunk = cfg?.idleThresholdPerChunk || 60;
+  const now = new Date();
+  const nowMs = now.getTime();
 
+  // 🔹 "Today" window (use your existing logic here if you already added TZ)
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    0,
+    0,
+    0,
+    0
+  );
+  const startOfTomorrow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1,
+    0,
+    0,
+    0,
+    0
+  );
+
+  // 🔹 Aggregate TODAY'S chunks:
+  //   - Sum active/idle seconds
+  //   - Track FIRST chunk endAt (work start)
+  //   - Track LAST chunk endAt + its active/idle (for "current" state)
   const rows = await ActivityChunk.aggregate([
     {
       $match: {
@@ -166,11 +194,16 @@ async function fetchActivityTodayBatch(deviceIds) {
         endAt: { $gte: startOfToday, $lt: startOfTomorrow },
       },
     },
+    { $sort: { endAt: 1 } }, // earliest → latest
     {
       $group: {
         _id: "$deviceId",
         activeSeconds: { $sum: { $ifNull: ["$logTotals.activeTime", 0] } },
-        idleSeconds:   { $sum: { $ifNull: ["$logTotals.idleTime", 0] } },
+        idleSeconds: { $sum: { $ifNull: ["$logTotals.idleTime", 0] } },
+        firstChunkAt: { $first: "$endAt" },                  // 👈 work start today
+        lastChunkAt: { $last: "$endAt" },                    // 👈 latest chunk today
+        lastChunkActive: { $last: "$logTotals.activeTime" }, // for status
+        lastChunkIdle: { $last: "$logTotals.idleTime" },
       },
     },
   ]).allowDiskUse(true);
@@ -178,13 +211,41 @@ async function fetchActivityTodayBatch(deviceIds) {
   const out = {};
   for (const r of rows) {
     const active = Math.max(0, Math.floor(Number(r.activeSeconds || 0)));
-    const idle   = Math.max(0, Math.floor(Number(r.idleSeconds   || 0)));
-    if (active > 0 || idle > 0) {
-      out[r._id] = { activeSeconds: active, idleSeconds: idle };
+    const idle = Math.max(0, Math.floor(Number(r.idleSeconds || 0)));
+
+    const firstChunkAt = r.firstChunkAt || null;
+    const lastChunkAt = r.lastChunkAt || null;
+    const lastActive = Number(r.lastChunkActive || 0);
+    const lastIdle = Number(r.lastChunkIdle || 0);
+
+    // 🔹 Approximate "current" activity state
+    // Only trust it if the last chunk is reasonably fresh.
+    let activityState = null; // "active" | "idle" | null
+    if (lastChunkAt) {
+      const ageSec = (nowMs - lastChunkAt.getTime()) / 1000;
+      const freshnessSec = (chunkTimeSec || 300) + (idleThresholdPerChunk || 60);
+
+      if (ageSec <= freshnessSec) {
+        // Recent enough → decide based on active vs idle in that chunk
+        activityState = lastActive > lastIdle ? "active" : "idle";
+      } else {
+        // Old chunk → assume idle
+        activityState = "idle";
+      }
     }
+
+    out[r._id] = {
+      activeSeconds: active,
+      idleSeconds: idle,
+      firstChunkAt,
+      lastChunkAt,
+      activityState,
+    };
   }
+
   return out;
 }
+
 
 
 // ===========================
