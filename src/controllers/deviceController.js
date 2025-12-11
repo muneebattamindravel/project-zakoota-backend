@@ -7,31 +7,21 @@ const Respond = require("../utils/respond");
 
 const ActivityChunk = require("../models/activityChunk"); // uses endAt + logTotals.*  ✅
 
-// Timezone for "today" activity window (in minutes from UTC)
-// Asia/Karachi = +300. You can change via env if needed.
-const ACTIVITY_TZ_OFFSET_MINUTES = parseInt(
-  process.env.ACTIVITY_TZ_OFFSET_MINUTES || "300",
-  10
-);
+const ACTIVITY_TZ_OFFSET_MINUTES = 5 * 60; // Asia/Karachi (+05:00)
 
 /**
- * Compute "today" start/end in UTC, for a fixed offset timezone.
- * Example: offsetMinutes = 300 -> UTC+05:00 (Pakistan local).
+ * Compute "today" window in a fixed offset timezone.
  */
 function getTodayWindowForOffset(offsetMinutes) {
+  const nowUtcMs = Date.now();
   const offsetMs = offsetMinutes * 60 * 1000;
 
-  // Current time in UTC
-  const nowUtc = new Date();
+  // Convert current UTC time to "local" time in the target TZ
+  const local = new Date(nowUtcMs + offsetMs);
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth(); // 0-based
+  const day = local.getUTCDate();
 
-  // Convert to "activity timezone" by adding offset
-  const nowInTarget = new Date(nowUtc.getTime() + offsetMs);
-
-  const year = nowInTarget.getUTCFullYear();
-  const month = nowInTarget.getUTCMonth();
-  const day = nowInTarget.getUTCDate();
-
-  // Midnight in target TZ, mapped back to UTC
   const startUtcMs = Date.UTC(year, month, day) - offsetMs;
   const endUtcMs = Date.UTC(year, month, day + 1) - offsetMs;
 
@@ -41,6 +31,39 @@ function getTodayWindowForOffset(offsetMinutes) {
   };
 }
 
+/**
+ * Compute start/end for a specific calendar date in the offset timezone.
+ * dateStr is expected as "YYYY-MM-DD".
+ */
+function getDayWindowForOffset(offsetMinutes, dateStr) {
+  if (!dateStr) {
+    return getTodayWindowForOffset(offsetMinutes);
+  }
+
+  try {
+    const [yearStr, monthStr, dayStr] = dateStr.split("-");
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10); // 1–12
+    const day = parseInt(dayStr, 10);
+
+    if (!year || !month || !day) {
+      return getTodayWindowForOffset(offsetMinutes);
+    }
+
+    const offsetMs = offsetMinutes * 60 * 1000;
+
+    const startUtcMs = Date.UTC(year, month - 1, day) - offsetMs;
+    const endUtcMs = Date.UTC(year, month - 1, day + 1) - offsetMs;
+
+    return {
+      startOfToday: new Date(startUtcMs),
+      startOfTomorrow: new Date(endUtcMs),
+    };
+  } catch (e) {
+    console.error("getDayWindowForOffset error:", e);
+    return getTodayWindowForOffset(offsetMinutes);
+  }
+}
 
 // ---------------------------
 // Presence helpers
@@ -152,41 +175,25 @@ async function fetchCommandSummaries(deviceIds) {
   for (const t of totals)      map[t._id] = { ...(map[t._id] || {}), totals: t.totals };
   return map;
 }
-
-async function fetchActivityTodayBatch(deviceIds) {
+// ---------------------------
+// DAY activity batch
+// Uses ActivityChunk with: deviceId, endAt, logTotals.activeTime, logTotals.idleTime
+// Sums chunks for the requested day per device. If none, returns {} and UI shows "no data".
+// ---------------------------
+async function fetchActivityTodayBatch(deviceIds, dateStr) {
   if (!Array.isArray(deviceIds) || deviceIds.length === 0) return {};
 
-  // 🔹 Load config for chunk time + idle threshold (same as logController)
   const cfg = await Config.findOne({}).lean();
-  const chunkTimeSec = cfg?.chunkTime || 300;              // default 5 min on server
+  const chunkTimeSec = cfg?.chunkTime || 300; // default 5 min
   const idleThresholdPerChunk = cfg?.idleThresholdPerChunk || 60;
-  const now = new Date();
-  const nowMs = now.getTime();
 
-  // 🔹 "Today" window (use your existing logic here if you already added TZ)
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    0,
-    0,
-    0,
-    0
-  );
-  const startOfTomorrow = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-    0,
-    0,
-    0,
-    0
+  const nowMs = Date.now();
+
+  const { startOfToday, startOfTomorrow } = getDayWindowForOffset(
+    ACTIVITY_TZ_OFFSET_MINUTES,
+    dateStr
   );
 
-  // 🔹 Aggregate TODAY'S chunks:
-  //   - Sum active/idle seconds
-  //   - Track FIRST chunk endAt (work start)
-  //   - Track LAST chunk endAt + its active/idle (for "current" state)
   const rows = await ActivityChunk.aggregate([
     {
       $match: {
@@ -200,9 +207,9 @@ async function fetchActivityTodayBatch(deviceIds) {
         _id: "$deviceId",
         activeSeconds: { $sum: { $ifNull: ["$logTotals.activeTime", 0] } },
         idleSeconds: { $sum: { $ifNull: ["$logTotals.idleTime", 0] } },
-        firstChunkAt: { $first: "$endAt" },                  // 👈 work start today
-        lastChunkAt: { $last: "$endAt" },                    // 👈 latest chunk today
-        lastChunkActive: { $last: "$logTotals.activeTime" }, // for status
+        firstChunkAt: { $first: "$endAt" },
+        lastChunkAt: { $last: "$endAt" },
+        lastChunkActive: { $last: "$logTotals.activeTime" },
         lastChunkIdle: { $last: "$logTotals.idleTime" },
       },
     },
@@ -218,18 +225,16 @@ async function fetchActivityTodayBatch(deviceIds) {
     const lastActive = Number(r.lastChunkActive || 0);
     const lastIdle = Number(r.lastChunkIdle || 0);
 
-    // 🔹 Approximate "current" activity state
-    // Only trust it if the last chunk is reasonably fresh.
     let activityState = null; // "active" | "idle" | null
+
     if (lastChunkAt) {
       const ageSec = (nowMs - lastChunkAt.getTime()) / 1000;
-      const freshnessSec = (chunkTimeSec || 300) + (idleThresholdPerChunk || 60);
+      const freshnessSec =
+        (chunkTimeSec || 300) + (idleThresholdPerChunk || 60);
 
       if (ageSec <= freshnessSec) {
-        // Recent enough → decide based on active vs idle in that chunk
         activityState = lastActive > lastIdle ? "active" : "idle";
       } else {
-        // Old chunk → assume idle
         activityState = "idle";
       }
     }
@@ -245,7 +250,6 @@ async function fetchActivityTodayBatch(deviceIds) {
 
   return out;
 }
-
 
 
 // ===========================
@@ -283,16 +287,22 @@ exports.list = async (_req, res) => {
 // ===========================================
 // NEW: listOptimized (everything in one call)
 // ===========================================
-exports.listOptimized = async (_req, res) => {
+exports.listOptimized = async (req, res) => {
   try {
     const now = Date.now();
     const config = await Config.findOne({}).lean();
     const devices = await Device.find({}).lean();
     const deviceIds = devices.map((d) => d.deviceId);
 
+    // Optional ?date=YYYY-MM-DD in activity timezone (Asia/Karachi)
+    const dateStr =
+      typeof req.query.date === "string" && req.query.date.trim()
+        ? req.query.date.trim()
+        : undefined;
+
     const [cmdMap, actMap] = await Promise.all([
       fetchCommandSummaries(deviceIds),
-      fetchActivityTodayBatch(deviceIds),
+      fetchActivityTodayBatch(deviceIds, dateStr),
     ]);
 
     const enriched = devices.map((d) => {
@@ -311,26 +321,37 @@ exports.listOptimized = async (_req, res) => {
 
         // presence
         clientStatus: presence.clientStatus,
+        serviceStatus: presence.serviceStatus,
         lastSeen: presence.lastSeen,
 
         // command snapshots
         commandsSummary: {
           lastPending: cmd.lastPending || null,
           lastAck: cmd.lastAck || null,
-          totals: cmd.totals || { pending: 0, acknowledged: 0 },
+          totals: cmd.totals || {
+            pending: 0,
+            acknowledged: 0,
+            completed: 0,
+          },
         },
 
-        // activity
-        activityToday, // { activeSeconds, idleSeconds } | null
+        // activity for selected day
+        activityToday,
       };
     });
 
     return Respond.ok(res, enriched, "Devices (optimized) fetched");
   } catch (err) {
     console.error("listOptimized error:", err);
-    return Respond.error(res, "server_error", "Failed to list devices", err.message);
+    return Respond.error(
+      res,
+      "server_error",
+      "Failed to list devices",
+      err.message
+    );
   }
 };
+
 
 exports.assignDevice = async (req, res) => {
   try {
