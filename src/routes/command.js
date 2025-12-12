@@ -14,7 +14,7 @@ router.get('/pending/:deviceId', commandController.getPendingCommands);
 router.patch('/acknowledge', commandController.acknowledgeCommand);
 
 // ✅ New: list all commands with filters
-router.get('/list', commandController.listCommands);
+router.get('/list', requireAuth, commandController.listCommands);
 
 // ✅ New: delete all commands
 router.delete('/deleteAll', requireAuth, commandController.deleteAllCommands);
