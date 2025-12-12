@@ -1,84 +1,68 @@
+// controllers/authController.js
+const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-const User = require("../models/user");
-const Respond = require("../utils/respond");
+
+const ADMIN_USER = process.env.DASHBOARD_ADMIN_USER || "admin";
+const ADMIN_PASS = process.env.DASHBOARD_ADMIN_PASSWORD || "password";
+const ADMIN_PASS_HASH = process.env.DASHBOARD_ADMIN_PASS_HASH || null;
+
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
+
+// Optional helper if you later want to store a hash in env
+async function verifyPassword(plain, hash) {
+  return bcrypt.compare(plain, hash);
+}
 
 exports.login = async (req, res) => {
   try {
     const { username, password } = req.body || {};
 
-    console.log("------------------")
-    console.log("------------------")
-    console.log(`username ${username} password ${password}`);
-
     if (!username || !password) {
-      return Respond.badRequest(
-        res,
-        "missing_credentials",
-        "Username and password are required"
-      );
+      return res.status(400).json({ error: "Missing username or password" });
     }
 
-    console.log("pass 1")
-
-    const user = await User.findOne({ username });
-    if (!user) {
-      console.log("fail 1")
-      return Respond.unauthorized(
-        res,
-        "invalid_credentials",
-        "Invalid username or password"
-      );
+    if (username !== ADMIN_USER) {
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    console.log("pass 2")
-
-    console.log(`password received ${password} password hash ${user.passwordHash}`)
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
-      console.log("fail 2")
-      return Respond.unauthorized(
-        res,
-        "invalid_credentials",
-        "Invalid username or password"
-      );
+    if (ADMIN_PASS_HASH) {
+      const ok = await verifyPassword(password, ADMIN_PASS_HASH);
+      if (!ok) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+    } else {
+      if (password !== ADMIN_PASS) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
     }
 
-    console.log("pass 3")
+    const payload = {
+      sub: username,
+      role: "admin",
+      type: "dashboard",
+    };
 
-    // ✅ Return only safe fields
-    return Respond.ok(
-      res,
-      { user: { id: user._id, username: user.username } },
-      "Login successful"
-    );
+    const token = jwt.sign(payload, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
+
+    res.json({
+      token,
+      user: {
+        username,
+        role: "admin",
+      },
+    });
   } catch (err) {
-    console.error("❌ Login error:", err);
-    return Respond.error(res, "server_error", err.message || "Internal server error");
+    console.error("auth.login error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
-
-// Register user with hashed password
-exports.register = async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password) {
-      return Respond.error(res, "validation_error", "Username and password required");
-    }
-
-    const existing = await User.findOne({ username });
-    if (existing) {
-      return Respond.error(res, "conflict", "User already exists");
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = new User({ username, passwordHash });
-    await user.save();
-
-    return Respond.ok(res, {
-      user: { id: user._id, username: user.username }
-    });
-  } catch (err) {
-    return Respond.error(res, "server_error", err.message || "Internal server error");
-  }
+// Optional: simple token check endpoint if you ever want it
+exports.me = (req, res) => {
+  res.json({
+    user: req.user || null,
+  });
 };

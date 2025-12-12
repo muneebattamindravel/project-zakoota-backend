@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const commandController = require('../controllers/commandController');
 
+const { requireAuth } = require("../middlewares/authMiddleware");
+
 // Create new command
-router.post('/create', commandController.createCommand);
+router.post('/create', requireAuth, commandController.createCommand);
 
 // ✅ New: get all pending commands for a device (used in heartbeat)
 router.get('/pending/:deviceId', commandController.getPendingCommands);
@@ -15,8 +17,8 @@ router.patch('/acknowledge', commandController.acknowledgeCommand);
 router.get('/list', commandController.listCommands);
 
 // ✅ New: delete all commands
-router.delete('/deleteAll', commandController.deleteAllCommands);
+router.delete('/deleteAll', requireAuth, commandController.deleteAllCommands);
 
-router.post('/summary', commandController.batchSummary);
+router.post('/summary', requireAuth, commandController.batchSummary);
 
 module.exports = router;
