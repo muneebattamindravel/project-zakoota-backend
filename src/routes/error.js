@@ -7,4 +7,4 @@ router.post('/log', deviceErrorController.logError);
 router.get('/list', requireAuth, deviceErrorController.listErrors);
 router.delete('/delete-all', requireAuth, deviceErrorController.deleteAllErrors);
 
-module.exports = router;
+module.exports = router;;
