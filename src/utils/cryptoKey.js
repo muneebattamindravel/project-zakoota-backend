@@ -4,8 +4,6 @@ const crypto = require("crypto");
 // Derive or parse a 32-byte AES key from the env secret
 function makeAesKeyFromSecret(secret) {
 
-  console.log("********************************* SECRET = " + secret)
-
   function isProbablyBase64(s) {
     return typeof s === "string" && /^[A-Za-z0-9+/=]+$/.test(s) && s.length % 4 === 0;
   }
