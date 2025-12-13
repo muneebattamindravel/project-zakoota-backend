@@ -1,4 +1,4 @@
-]// src/scripts/createAdminUser.js
+// src/scripts/createAdminUser.js
 //
 // One-off / idempotent script to create an initial admin user in the database.
 // Safe to run multiple times: if the user exists, it does nothing.
