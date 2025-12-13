@@ -1,13 +1,14 @@
-// routes/auth.js
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const authController = require("../controllers/authController");
-const { requireAuth } = require("../middlewares/authMiddleware");
+const authController = require('../controllers/authController');
+const { requireAuth } = require('../middlewares/authMiddleware');
 
-// Public login route
-router.post("/login", authController.login);
+// Public login
+router.post('/login', authController.login);
 
-// Optional: authenticated "who am I"
-router.get("/me", requireAuth, authController.me);
+// Authenticated helpers
+router.post('/logout', requireAuth, authController.logout);
+router.get('/me', requireAuth, authController.me);
+router.get('/sessions', requireAuth, authController.listSessions);
 
 module.exports = router;
