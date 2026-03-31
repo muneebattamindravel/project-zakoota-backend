@@ -382,6 +382,30 @@ exports.assignDevice = async (req, res) => {
   }
 };
 
+exports.updateName = async (req, res) => {
+  try {
+    const { deviceId, name } = req.body;
+    if (!deviceId || !name) {
+      return res.status(400).json({ error: "deviceId and name are required" });
+    }
+
+    const device = await Device.findOneAndUpdate(
+      { deviceId },
+      { $set: { name } },
+      { new: true }
+    );
+
+    if (!device) {
+      return res.status(404).json({ error: "Device not found" });
+    }
+
+    res.json({ ok: true, data: device });
+  } catch (err) {
+    console.error("updateName error:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
 // NEW: delete all devices
 exports.deleteAllDevices = async (req, res) => {
   await Device.deleteMany({});
