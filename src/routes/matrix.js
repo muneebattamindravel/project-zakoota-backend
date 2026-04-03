@@ -7,5 +7,6 @@ const router = express.Router();
 
 router.get('/users', requireAuth, asyncHandler(matrixController.getUsers));
 router.post('/link-device', requireAuth, asyncHandler(matrixController.linkDevice));
+router.post('/unlink-device', requireAuth, asyncHandler(matrixController.unlinkDevice));
 
 module.exports = router;
