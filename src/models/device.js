@@ -11,6 +11,7 @@ const deviceSchema = new mongoose.Schema(
     checkInTime: Date,
     lastClientHeartbeat: Date,
     lastServiceHeartbeat: Date,
+    lastMatrixIdleNotifiedAt: Date, // tracks last time Matrix was notified of idle, reset on active chunk
   },
   { timestamps: true }
 );

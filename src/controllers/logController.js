@@ -4,6 +4,7 @@ const Respond = require("../utils/respond");
 const { ingestBodyZ } = require("../validation/logSchemas");
 const { guessAppName } = require("../utils/appNormalize");
 const Config = require("../models/config");
+const { processIdleNotifications } = require("../utils/matrixIdleNotifier");
 
 // ✅ Ingest logs
 exports.ingest = async (req, res) => {
@@ -122,6 +123,14 @@ exports.ingest = async (req, res) => {
     }
 
     await Promise.all(Array.from(touchedDeviceIds).map((id) => markDeviceSeen(id)));
+
+    // Fire-and-forget: notify Matrix for newly inserted idle chunks
+    const insertedChunks = parsed.data.chunks.filter((_, i) => results[i]?.status === "inserted");
+    if (insertedChunks.length > 0) {
+      processIdleNotifications(insertedChunks, chunkTime).catch((err) =>
+        console.error("[matrixIdleNotifier] Unhandled error:", err.message)
+      );
+    }
 
     const duplicates = results.filter((r) => r.status === "duplicate").length;
     return Respond.ok(res, { results }, "Ingest complete", {
