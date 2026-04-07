@@ -127,7 +127,8 @@ exports.ingest = async (req, res) => {
     // Fire-and-forget: notify Matrix for newly inserted idle chunks
     const insertedChunks = parsed.data.chunks.filter((_, i) => results[i]?.status === "inserted");
     if (insertedChunks.length > 0) {
-      processIdleNotifications(insertedChunks, chunkTime).catch((err) =>
+      const matrixIdleThreshold = config?.matrixIdleThresholdSeconds ?? 300;
+      processIdleNotifications(insertedChunks, chunkTime, matrixIdleThreshold).catch((err) =>
         console.error("[matrixIdleNotifier] Unhandled error:", err.message)
       );
     }

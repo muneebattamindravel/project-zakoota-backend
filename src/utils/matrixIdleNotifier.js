@@ -16,7 +16,7 @@
 const Device = require('../models/device');
 
 const MATRIX_BASE_URL = 'https://matrix.mindravel.com';
-const IDLE_THRESHOLD_SECONDS = 300; // 5 minutes
+const DEFAULT_IDLE_THRESHOLD_SECONDS = 300; // fallback: 5 minutes
 
 /**
  * Call after bulkWrite in logController.ingest.
@@ -27,9 +27,11 @@ const IDLE_THRESHOLD_SECONDS = 300; // 5 minutes
  *
  * @param {Array} chunks - raw chunk objects from parsed.data.chunks
  * @param {number} chunkTime - seconds per chunk from config (default 300)
+ * @param {number} matrixIdleThresholdSeconds - idle seconds before notifying Matrix (configurable)
  */
-async function processIdleNotifications(chunks, chunkTime) {
-  const windowSeconds = chunkTime || IDLE_THRESHOLD_SECONDS;
+async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSeconds) {
+  const windowSeconds = chunkTime || DEFAULT_IDLE_THRESHOLD_SECONDS;
+  const IDLE_THRESHOLD_SECONDS = matrixIdleThresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS;
 
   for (const chunk of chunks) {
     try {

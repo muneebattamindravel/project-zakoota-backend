@@ -11,6 +11,8 @@ const configSchema = new mongoose.Schema(
 
     allowQuit: { type: Boolean, required: true, default: false },
 
+    matrixIdleThresholdSeconds: { type: Number, default: 300 }, // seconds of idle before notifying Matrix
+
     version: { type: Number, required: true, default: 1 },
   },
   { timestamps: true }
