@@ -76,14 +76,14 @@ exports.ingest = async (req, res) => {
 
       results.push({
         deviceId: c.deviceId,
-        endAtEpochMs: c.logClock.clientSideTimeEpochMs,
+        endMs: c.logClock.clientSideTimeEpochMs,   // client looks for endMs or endEpoch
         status: "pending",
       });
     } catch (e) {
       console.error("ingest prepare error", e);
       results.push({
         deviceId: c.deviceId,
-        endAtEpochMs: c.logClock?.clientSideTimeEpochMs,
+        endMs: c.logClock?.clientSideTimeEpochMs,
         status: "failed",
         error: "prepare_error",
       });
@@ -110,22 +110,22 @@ exports.ingest = async (req, res) => {
     for (let i = 0; i < results.length; i++) {
       if (results[i].status !== "pending") continue;
       if (inserted > 0) {
-        results[i].status = "inserted";
+        results[i].status = "ok-inserted";
         inserted--;
         continue;
       }
       if (updated > 0) {
-        results[i].status = "updated";
+        results[i].status = "ok-updated";
         updated--;
         continue;
       }
-      results[i].status = "duplicate";
+      results[i].status = "ok-duplicate";
     }
 
     await Promise.all(Array.from(touchedDeviceIds).map((id) => markDeviceSeen(id)));
 
     // Fire-and-forget: log and process idle notifications for all chunks
-    const allChunksWithStatus = parsed.data.chunks.map((c, i) => ({ ...c, _ingestStatus: results[i]?.status ?? 'unknown' }));
+    const allChunksWithStatus = parsed.data.chunks.map((c, i) => ({ ...c, _ingestStatus: results[i]?.status ?? 'unknown', _isNew: results[i]?.status === 'ok-inserted' }));
     const matrixIdleThreshold = config?.matrixIdleThresholdSeconds ?? 300;
     processIdleNotifications(allChunksWithStatus, chunkTime, matrixIdleThreshold).catch((err) =>
       console.error("[chunk] Unhandled error:", err.message)
