@@ -21,6 +21,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 // console.log('-------------------------------');
 
 const app = express();
+app.set('trust proxy', 1); // behind Lightsail/nginx proxy
 
 // ---- Security & basics
 app.use(helmet());
