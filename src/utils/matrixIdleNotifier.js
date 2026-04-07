@@ -38,15 +38,11 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
 
       if (isActiveChunk) {
         // Device was active — reset consecutive idle stretch and notification flag
-        const prev = await Device.findOneAndUpdate(
+        await Device.findOneAndUpdate(
           { deviceId },
           { $set: { currentIdleStretchSeconds: 0 }, $unset: { lastMatrixIdleNotifiedAt: '' } },
           { new: false }
         ).lean();
-
-        if (prev?.currentIdleStretchSeconds > 0 || prev?.lastMatrixIdleNotifiedAt) {
-          console.log(`[matrixIdleNotifier] Active chunk — reset idle stretch for ${deviceId} (was ${prev.currentIdleStretchSeconds}s)`);
-        }
         continue;
       }
 
@@ -61,10 +57,7 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
 
       const stretch = updated.currentIdleStretchSeconds;
 
-      console.log(
-        `[matrixIdleNotifier] ${deviceId} — idle stretch: ${stretch}s / threshold: ${threshold}s` +
-        (updated.lastMatrixIdleNotifiedAt ? ' (already notified)' : '')
-      );
+      console.log(`[matrixIdleNotifier] ${deviceId} — idle stretch: ${stretch}s / threshold: ${threshold}s`);
 
       // Already notified for this idle stretch
       if (updated.lastMatrixIdleNotifiedAt) continue;
@@ -73,10 +66,7 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
       if (stretch < threshold) continue;
 
       // Must be linked to a Matrix user
-      if (!updated.userId) {
-        console.log(`[matrixIdleNotifier] Skipped — device not linked to Matrix: ${deviceId}`);
-        continue;
-      }
+      if (!updated.userId) continue;
 
       const idleMinutes = Math.round(stretch / 60);
 
