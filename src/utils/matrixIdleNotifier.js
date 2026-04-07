@@ -34,7 +34,7 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
       const activeTime = Number(logTotals?.activeTime ?? 0);
       const endAt = new Date(logClock.clientSideTimeEpochMs);
 
-      const isActiveChunk = activeTime > idleTime;
+      const isActiveChunk = activeTime > 0; // any activity at all breaks the idle streak
 
       if (isActiveChunk) {
         // Device was active — reset consecutive idle stretch and notification flag
