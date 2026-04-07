@@ -14,11 +14,11 @@ const PORT = Number(process.env.PORT || 6666);
 const MONGO_URI = process.env.MONGO_URI;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
-console.log('-------------------------------');
-console.log('***** Z A K O O T A  v1.0 *****');
-console.log('-------------------------------');
-console.log(new Date().toISOString());
-console.log('-------------------------------');
+// console.log('-------------------------------');
+// console.log('***** Z A K O O T A  v1.0 *****');
+// console.log('-------------------------------');
+// console.log(new Date().toISOString());
+// console.log('-------------------------------');
 
 const app = express();
 
@@ -29,7 +29,7 @@ app.use(express.json({ limit: '2mb' }));
 
 app.use(require("./middlewares/decryptMiddleware"));
 
-app.use(morgan('combined'));
+// app.use(morgan('combined'));
 
 // ---- Rate limits
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 50 });
@@ -69,13 +69,13 @@ let server;
 async function start() {
   try {
     if (!MONGO_URI) throw new Error('MONGO_URI not set');
-    console.log('✅ Connecting to MongoDB...');
+    // console.log('✅ Connecting to MongoDB...');
     await mongoose.connect(MONGO_URI);
-    console.log('✅ MongoDB connected');
+    // console.log('✅ MongoDB connected');
 
     server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Listening on http://0.0.0.0:${PORT}${API_PREFIX}`);
-      console.log(`🩺 Health: GET ${API_PREFIX}/health`);
+      // console.log(`🚀 Listening on http://0.0.0.0:${PORT}${API_PREFIX}`);
+      // console.log(`🩺 Health: GET ${API_PREFIX}/health`);
     });
   } catch (e) {
     console.error('❌ Startup error:', e);
@@ -86,10 +86,10 @@ start();
 
 async function shutdown(sig) {
   try {
-    console.log(`🛑 ${sig} received: shutting down...`);
+    // console.log(`🛑 ${sig} received: shutting down...`);
     if (server) await new Promise((res) => server.close(res));
     await mongoose.connection.close();
-    console.log('✅ Clean shutdown complete');
+    // console.log('✅ Clean shutdown complete');
   } finally {
     process.exit(0);
   }
