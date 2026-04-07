@@ -31,7 +31,16 @@ const DEFAULT_IDLE_THRESHOLD_SECONDS = 300; // fallback: 5 minutes
  */
 async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSeconds) {
   const windowSeconds = chunkTime || DEFAULT_IDLE_THRESHOLD_SECONDS;
-  const IDLE_THRESHOLD_SECONDS = matrixIdleThresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS;
+
+  // Cap the threshold at windowSeconds — a chunk can never have more idle
+  // time than its own duration, so a threshold higher than chunkTime would
+  // never fire.
+  const configuredThreshold = matrixIdleThresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS;
+  const effectiveThreshold = Math.min(configuredThreshold, windowSeconds);
+
+  console.log(
+    `[matrixIdleNotifier] Processing ${chunks.length} chunk(s) — chunkTime: ${windowSeconds}s, threshold: ${effectiveThreshold}s (configured: ${configuredThreshold}s)`
+  );
 
   for (const chunk of chunks) {
     try {
@@ -43,7 +52,10 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
       const startAt = new Date(endAt.getTime() - windowSeconds * 1000);
 
       const device = await Device.findOne({ deviceId }).lean();
-      if (!device) continue;
+      if (!device) {
+        console.log(`[matrixIdleNotifier] Device not found: ${deviceId}`);
+        continue;
+      }
 
       const isActive = activeTime > idleTime;
 
@@ -51,22 +63,34 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
         // Device was active this chunk — reset so next idle stretch fires again
         if (device.lastMatrixIdleNotifiedAt) {
           await Device.updateOne({ deviceId }, { $unset: { lastMatrixIdleNotifiedAt: '' } });
+          console.log(`[matrixIdleNotifier] Reset idle state for active device: ${deviceId}`);
         }
         continue;
       }
 
-      const isIdle = idleTime >= IDLE_THRESHOLD_SECONDS;
+      const isIdle = idleTime >= effectiveThreshold;
+
+      console.log(
+        `[matrixIdleNotifier] ${deviceId} — idle: ${idleTime}s, active: ${activeTime}s, threshold: ${effectiveThreshold}s, qualifies: ${isIdle}`
+      );
+
       if (!isIdle) continue;
 
-      // Already notified for this idle stretch? (notification timestamp falls within current window)
+      // Already notified for this idle stretch?
       const alreadyNotified =
         device.lastMatrixIdleNotifiedAt &&
         new Date(device.lastMatrixIdleNotifiedAt) >= startAt;
 
-      if (alreadyNotified) continue;
+      if (alreadyNotified) {
+        console.log(`[matrixIdleNotifier] Already notified for this idle stretch: ${deviceId}`);
+        continue;
+      }
 
       // Device must be linked to a Matrix user
-      if (!device.userId) continue;
+      if (!device.userId) {
+        console.log(`[matrixIdleNotifier] Skipped — device not linked to Matrix user: ${deviceId}`);
+        continue;
+      }
 
       const idleMinutes = Math.round(idleTime / 60);
 
@@ -79,10 +103,10 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
       await Device.updateOne({ deviceId }, { $set: { lastMatrixIdleNotifiedAt: new Date() } });
 
       console.log(
-        `[matrixIdleNotifier] Notified Matrix — device: ${deviceId}, userId: ${device.userId}, idleMinutes: ${idleMinutes}`
+        `[matrixIdleNotifier] ✅ Notified Matrix — device: ${deviceId}, userId: ${device.userId}, idleMinutes: ${idleMinutes}`
       );
     } catch (err) {
-      console.error(`[matrixIdleNotifier] Error processing chunk for ${chunk?.deviceId}:`, err.message);
+      console.error(`[matrixIdleNotifier] ❌ Error for ${chunk?.deviceId}: ${err.message}`);
     }
   }
 }
