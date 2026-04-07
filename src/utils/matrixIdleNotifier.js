@@ -102,7 +102,7 @@ async function _callMatrixStopIdle({ userId, idleMinutes, detectedAt }) {
   const apiKey = process.env.MATRIX_API_KEY;
   if (!apiKey) throw new Error('MATRIX_API_KEY is not configured');
 
-  const res = await fetch(`${MATRIX_BASE_URL}/dev/external-service/timers/stop-idle`, {
+  const res = await fetch(`${MATRIX_BASE_URL}/external-service/timers/stop-idle`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
