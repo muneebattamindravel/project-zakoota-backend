@@ -73,6 +73,7 @@ exports.login = async (req, res) => {
       expiresIn: JWT_EXPIRES_IN,
     });
 
+    console.log(`[auth] login: ${user.username} from ${req.headers['x-forwarded-for'] || req.connection.remoteAddress}`);
     user.lastLoginAt = new Date();
     await user.save();
 

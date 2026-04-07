@@ -75,6 +75,7 @@ exports.updateConfig = async (req, res) => {
     }
 
     await config.save();
+    console.log(`[config] updated — chunkTime: ${config.chunkTime}s, idleThreshold: ${config.idleThresholdPerChunk}s, matrixIdleThreshold: ${config.matrixIdleThresholdSeconds}s, version: ${config.version}`);
     res.json({ data: config });
   } catch (err) {
     res.status(500).json({ error: err.message });

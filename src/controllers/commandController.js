@@ -61,6 +61,7 @@ exports.createCommand = async (req, res) => {
     });
 
     await command.save();
+    console.log(`[command] created — deviceId: ${deviceId}, target: ${target}, type: ${type}`);
     res.json({ ok: true, data: command });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

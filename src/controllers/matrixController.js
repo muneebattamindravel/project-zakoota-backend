@@ -66,6 +66,7 @@ exports.linkDevice = async (req, res) => {
       return res.status(404).json({ error: 'Device not found' });
     }
 
+    console.log(`[matrix] linked device ${deviceId} → userId: ${matrixUser.userId} (${matrixUser.name || matrixUser.username})`);
     return Respond.ok(res, { device, matrixUser }, 'Device linked to Matrix user');
   } catch (err) {
     console.error('matrixController.linkDevice error:', err);
@@ -90,6 +91,7 @@ exports.unlinkDevice = async (req, res) => {
       return res.status(404).json({ error: 'Device not found' });
     }
 
+    console.log(`[matrix] unlinked device ${deviceId}`);
     return Respond.ok(res, { device }, 'Device unlinked from Matrix user');
   } catch (err) {
     console.error('matrixController.unlinkDevice error:', err);
