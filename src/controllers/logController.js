@@ -124,6 +124,8 @@ exports.ingest = async (req, res) => {
 
     await Promise.all(Array.from(touchedDeviceIds).map((id) => markDeviceSeen(id)));
 
+    console.log(`[ingest] ${new Date().toISOString()} — inserted: ${upserts}, updated: ${modified}, duplicates: ${results.filter(r => r.status === "duplicate").length}`);
+
     // Fire-and-forget: notify Matrix for newly inserted idle chunks
     const insertedChunks = parsed.data.chunks.filter((_, i) => results[i]?.status === "inserted");
     if (insertedChunks.length > 0) {
