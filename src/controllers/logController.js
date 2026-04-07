@@ -124,16 +124,12 @@ exports.ingest = async (req, res) => {
 
     await Promise.all(Array.from(touchedDeviceIds).map((id) => markDeviceSeen(id)));
 
-    console.log(`[ingest] ${new Date().toISOString()} — inserted: ${upserts}, updated: ${modified}, duplicates: ${results.filter(r => r.status === "duplicate").length}`);
-
-    // Fire-and-forget: notify Matrix for newly inserted idle chunks
-    const insertedChunks = parsed.data.chunks.filter((_, i) => results[i]?.status === "inserted");
-    if (insertedChunks.length > 0) {
-      const matrixIdleThreshold = config?.matrixIdleThresholdSeconds ?? 300;
-      processIdleNotifications(insertedChunks, chunkTime, matrixIdleThreshold).catch((err) =>
-        console.error("[matrixIdleNotifier] Unhandled error:", err.message)
-      );
-    }
+    // Fire-and-forget: log and process idle notifications for all chunks
+    const allChunksWithStatus = parsed.data.chunks.map((c, i) => ({ ...c, _ingestStatus: results[i]?.status ?? 'unknown' }));
+    const matrixIdleThreshold = config?.matrixIdleThresholdSeconds ?? 300;
+    processIdleNotifications(allChunksWithStatus, chunkTime, matrixIdleThreshold).catch((err) =>
+      console.error("[chunk] Unhandled error:", err.message)
+    );
 
     const duplicates = results.filter((r) => r.status === "duplicate").length;
     return Respond.ok(res, { results }, "Ingest complete", {

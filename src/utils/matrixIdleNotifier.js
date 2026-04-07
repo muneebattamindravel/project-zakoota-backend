@@ -20,30 +20,35 @@ const MATRIX_BASE_URL = 'https://matrix.mindravel.com';
 const DEFAULT_IDLE_THRESHOLD_SECONDS = 300;
 
 /**
- * @param {Array}  chunks                    - newly inserted chunks from ingest
- * @param {number} chunkTime                 - seconds per chunk (unused for threshold, kept for context)
- * @param {number} matrixIdleThresholdSeconds - consecutive idle seconds before notifying Matrix
+ * @param {Array}  chunksWithStatus             - all chunks from ingest, each with a `_ingestStatus` field ('inserted'|'updated'|'duplicate')
+ * @param {number} chunkTime                    - seconds per chunk
+ * @param {number} matrixIdleThresholdSeconds   - consecutive idle seconds before notifying Matrix
  */
-async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSeconds) {
+async function processIdleNotifications(chunksWithStatus, chunkTime, matrixIdleThresholdSeconds) {
   const threshold = matrixIdleThresholdSeconds || DEFAULT_IDLE_THRESHOLD_SECONDS;
 
-  for (const chunk of chunks) {
+  for (const chunk of chunksWithStatus) {
     try {
-      const { deviceId, logTotals, logClock } = chunk;
-      const idleTime  = Number(logTotals?.idleTime  ?? 0);
+      const { deviceId, logTotals, logClock, _ingestStatus } = chunk;
+      const idleTime   = Number(logTotals?.idleTime   ?? 0);
       const activeTime = Number(logTotals?.activeTime ?? 0);
       const endAt = new Date(logClock.clientSideTimeEpochMs);
+
+      // For duplicate/updated chunks: log and skip idle logic (already processed)
+      if (_ingestStatus !== 'inserted') {
+        console.log(`[chunk] ${deviceId} — ${_ingestStatus.toUpperCase()} (active: ${activeTime}s, idle: ${idleTime}s) → skipping idle logic`);
+        continue;
+      }
 
       const isActiveChunk = activeTime > 0; // any activity at all breaks the idle streak
 
       if (isActiveChunk) {
-        // Device was active — reset consecutive idle stretch and notification flag
         const prev = await Device.findOneAndUpdate(
           { deviceId },
           { $set: { currentIdleStretchSeconds: 0 }, $unset: { lastMatrixIdleNotifiedAt: '' } },
           { new: false }
         ).lean();
-        console.log(`[matrixIdleNotifier] ${deviceId} — ACTIVE chunk (active: ${activeTime}s, idle: ${idleTime}s) → reset stretch (was ${prev?.currentIdleStretchSeconds ?? 0}s)`);
+        console.log(`[chunk] ${deviceId} — INSERTED, ACTIVE (active: ${activeTime}s, idle: ${idleTime}s) → idle stretch reset (was ${prev?.currentIdleStretchSeconds ?? 0}s)`);
         continue;
       }
 
@@ -55,35 +60,30 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
       ).lean();
 
       if (!updated) {
-        console.log(`[matrixIdleNotifier] ${deviceId} — IDLE chunk but device not found in DB, skipping`);
+        console.log(`[chunk] ${deviceId} — INSERTED, IDLE (idle: ${idleTime}s) → device not found in DB, skipping`);
         continue;
       }
 
       const stretch = updated.currentIdleStretchSeconds;
+      console.log(`[chunk] ${deviceId} — INSERTED, IDLE (idle: ${idleTime}s) → stretch: ${stretch}s / threshold: ${threshold}s`);
 
-      console.log(`[matrixIdleNotifier] ${deviceId} — IDLE chunk (idle: ${idleTime}s) → stretch: ${stretch}s / threshold: ${threshold}s`);
-
-      // Already notified for this idle stretch
       if (updated.lastMatrixIdleNotifiedAt) {
-        console.log(`[matrixIdleNotifier] ${deviceId} — already notified at ${updated.lastMatrixIdleNotifiedAt.toISOString()}, skipping`);
+        console.log(`[chunk] ${deviceId} → already notified Matrix at ${updated.lastMatrixIdleNotifiedAt.toISOString()}, skipping`);
         continue;
       }
 
-      // Threshold not yet crossed
       if (stretch < threshold) {
-        console.log(`[matrixIdleNotifier] ${deviceId} — below threshold (${stretch}s < ${threshold}s), waiting...`);
+        console.log(`[chunk] ${deviceId} → below threshold, waiting...`);
         continue;
       }
 
-      // Must be linked to a Matrix user
       if (!updated.userId) {
-        console.log(`[matrixIdleNotifier] ${deviceId} — threshold crossed but device not linked to Matrix, skipping`);
+        console.log(`[chunk] ${deviceId} → threshold crossed but not linked to a Matrix user, skipping`);
         continue;
       }
 
       const idleMinutes = Math.round(stretch / 60);
-
-      console.log(`[matrixIdleNotifier] ${deviceId} — calling Matrix API (userId: ${updated.userId}, idleMinutes: ${idleMinutes})...`);
+      console.log(`[chunk] ${deviceId} → calling Matrix stop-idle (userId: ${updated.userId}, idleMinutes: ${idleMinutes})...`);
 
       await _callMatrixStopIdle({
         userId: updated.userId,
@@ -93,11 +93,9 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
 
       await Device.updateOne({ deviceId }, { $set: { lastMatrixIdleNotifiedAt: new Date() } });
 
-      console.log(
-        `[matrixIdleNotifier] ✅ Notified Matrix — device: ${deviceId}, userId: ${updated.userId}, idleStretch: ${stretch}s, idleMinutes: ${idleMinutes}`
-      );
+      console.log(`[chunk] ${deviceId} → ✅ Matrix notified (userId: ${updated.userId}, idleStretch: ${stretch}s, idleMinutes: ${idleMinutes})`);
     } catch (err) {
-      console.error(`[matrixIdleNotifier] ❌ Error for ${chunk?.deviceId}: ${err.message}`);
+      console.error(`[chunk] ${chunk?.deviceId} → ❌ Error: ${err.message}`);
     }
   }
 }
