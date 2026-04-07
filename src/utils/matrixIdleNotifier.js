@@ -38,11 +38,12 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
 
       if (isActiveChunk) {
         // Device was active — reset consecutive idle stretch and notification flag
-        await Device.findOneAndUpdate(
+        const prev = await Device.findOneAndUpdate(
           { deviceId },
           { $set: { currentIdleStretchSeconds: 0 }, $unset: { lastMatrixIdleNotifiedAt: '' } },
           { new: false }
         ).lean();
+        console.log(`[matrixIdleNotifier] ${deviceId} — ACTIVE chunk (active: ${activeTime}s, idle: ${idleTime}s) → reset stretch (was ${prev?.currentIdleStretchSeconds ?? 0}s)`);
         continue;
       }
 
@@ -53,22 +54,36 @@ async function processIdleNotifications(chunks, chunkTime, matrixIdleThresholdSe
         { new: true }
       ).lean();
 
-      if (!updated) continue;
+      if (!updated) {
+        console.log(`[matrixIdleNotifier] ${deviceId} — IDLE chunk but device not found in DB, skipping`);
+        continue;
+      }
 
       const stretch = updated.currentIdleStretchSeconds;
 
-      console.log(`[matrixIdleNotifier] ${deviceId} — idle stretch: ${stretch}s / threshold: ${threshold}s`);
+      console.log(`[matrixIdleNotifier] ${deviceId} — IDLE chunk (idle: ${idleTime}s) → stretch: ${stretch}s / threshold: ${threshold}s`);
 
       // Already notified for this idle stretch
-      if (updated.lastMatrixIdleNotifiedAt) continue;
+      if (updated.lastMatrixIdleNotifiedAt) {
+        console.log(`[matrixIdleNotifier] ${deviceId} — already notified at ${updated.lastMatrixIdleNotifiedAt.toISOString()}, skipping`);
+        continue;
+      }
 
       // Threshold not yet crossed
-      if (stretch < threshold) continue;
+      if (stretch < threshold) {
+        console.log(`[matrixIdleNotifier] ${deviceId} — below threshold (${stretch}s < ${threshold}s), waiting...`);
+        continue;
+      }
 
       // Must be linked to a Matrix user
-      if (!updated.userId) continue;
+      if (!updated.userId) {
+        console.log(`[matrixIdleNotifier] ${deviceId} — threshold crossed but device not linked to Matrix, skipping`);
+        continue;
+      }
 
       const idleMinutes = Math.round(stretch / 60);
+
+      console.log(`[matrixIdleNotifier] ${deviceId} — calling Matrix API (userId: ${updated.userId}, idleMinutes: ${idleMinutes})...`);
 
       await _callMatrixStopIdle({
         userId: updated.userId,
