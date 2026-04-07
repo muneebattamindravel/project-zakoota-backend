@@ -11,7 +11,8 @@ const deviceSchema = new mongoose.Schema(
     checkInTime: Date,
     lastClientHeartbeat: Date,
     lastServiceHeartbeat: Date,
-    currentIdleStretchSeconds: { type: Number, default: 0 }, // accumulates consecutive idle seconds across chunks
+    currentIdleStretchSeconds: { type: Number, default: 0 }, // derived: seconds since idleStreakStartAt
+    idleStreakStartAt: Date, // when the current idle streak started; cleared on any active chunk
     lastMatrixIdleNotifiedAt: Date, // set when Matrix is notified, cleared when device becomes active again
   },
   { timestamps: true }
