@@ -313,11 +313,13 @@ exports.listOptimized = async (req, res) => {
       return {
         _id: d._id,
         deviceId: d.deviceId,
+        userId: d.userId || null,
         name: d.name,
         username: d.username,
         designation: d.designation,
         profileURL: d.profileURL,
         createdAt: d.createdAt,
+        lastMatrixIdleNotifiedAt: d.lastMatrixIdleNotifiedAt || null,
 
         // presence
         clientStatus: presence.clientStatus,
