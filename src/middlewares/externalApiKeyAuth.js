@@ -3,7 +3,10 @@ const Respond = require('../utils/respond');
 /**
  * API key auth for external system calls (e.g. The Matrix pulling focus data).
  * Header: x-api-key
- * Env: MATRIX_API_KEY — the key The Matrix must send.
+ * Env: EXTERNAL_API_KEY — the key The Matrix must send when calling MatrixFlow.
+ *
+ * Note: MATRIX_API_KEY (also in .env) is a different variable — it's the key
+ * MatrixFlow uses when calling The Matrix outbound. Keep them separate.
  */
 module.exports = function externalApiKeyAuth(req, res, next) {
   const key = String(req.headers['x-api-key'] || '').trim();
@@ -12,9 +15,9 @@ module.exports = function externalApiKeyAuth(req, res, next) {
     return Respond.unauthorized(res, 'API key required');
   }
 
-  const validKey = process.env.MATRIX_API_KEY;
+  const validKey = process.env.EXTERNAL_API_KEY;
   if (!validKey) {
-    console.error('[externalApiKeyAuth] MATRIX_API_KEY env var is not set');
+    console.error('[externalApiKeyAuth] EXTERNAL_API_KEY env var is not set');
     return Respond.error(res, 'config_error', 'External API not configured', undefined, 500);
   }
 
